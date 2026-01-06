@@ -1,0 +1,27 @@
+{
+  "name": "asset-tokenization-platform",
+  "private": true,
+  "engines": {
+    "node": "22"
+  },
+  "scripts": {
+    "predev": "node scripts/check-node.mjs",
+    "prebuild": "node scripts/check-node.mjs",
+    "preindexer:dev": "node scripts/check-node.mjs",
+    "dev": "npm --prefix apps/frontend run dev",
+    "build": "npm --prefix apps/frontend run build",
+    "dev:local": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\dev-local.ps1",
+    "indexer:dev": "node apps/frontend/scripts/indexer.mjs",
+    "frontend:dev": "npm --prefix apps/frontend run dev",
+    "frontend:build": "npm --prefix apps/frontend run build",
+    "frontend:start": "npm --prefix apps/frontend run start",
+    "contracts:build": "cd contracts && forge build",
+    "contracts:test": "cd contracts && forge test"
+  },
+  "dependencies": {
+    "ethers": "^6.16.0"
+  },
+  "devDependencies": {
+    "solc": "^0.8.20"
+  }
+}

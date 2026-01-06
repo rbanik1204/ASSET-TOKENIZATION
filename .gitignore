@@ -1,0 +1,87 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Testing
+coverage/
+*.log
+
+# Next.js
+.next/
+out/
+build/
+dist/
+
+# Production
+.vercel
+.firebase/
+.firebaserc
+
+# Environment Variables - DO NOT COMMIT
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env*.local
+
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# IDE
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Misc
+*.pem
+*.key
+.cache/
+
+# Foundry/Hardhat
+cache/
+artifacts/
+out/
+broadcast/
+
+# Temp files
+tmp/
+temp/
+*.tmp
+
+# Lock files (keep package-lock.json but ignore others)
+yarn.lock
+pnpm-lock.yaml
+
+# Firebase
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+.firebase-hosting-merge.yml
+
+# TypeScript
+*.tsbuildinfo
+
+# Marketplace cache
+/tmp/marketplace.json
+
+# Turbo
+.turbo/
+
+# Vercel
+.vercel/

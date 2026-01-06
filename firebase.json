@@ -1,0 +1,13 @@
+{
+  "hosting": [
+    {
+      "target": "asset-linked-c4ef2",
+      "source": "apps/frontend",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
+      ]
+    }
+  ]
+}

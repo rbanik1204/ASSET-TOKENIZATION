@@ -1,0 +1,180 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  
+  /* Core Backgrounds - Surface-based hierarchy */
+  --color-bg-main: #0A0B0D;
+  --color-bg-section: #0F1115;
+  --color-bg-surface: #14161B;
+  --color-bg-elevated: #1A1D23;
+  
+  /* Text Colors - High contrast */
+  --color-text-primary: #F5F7FA;
+  --color-text-secondary: #B0B7C3;
+  --color-text-muted: #7C8496;
+  
+  /* Primary Accent - ONE color only */
+  --color-accent: #3B82F6;
+  --color-accent-hover: #60A5FA;
+  
+  /* Status Colors */
+  --color-success: #22C55E;
+  --color-warning: #FACC15;
+  --color-error: #EF4444;
+  
+  /* Borders */
+  --color-border: #1F232B;
+  --color-border-hover: #2A2F38;
+}
+
+:root {
+  /* Core Backgrounds - Surface-based hierarchy */
+  --bg-main: #0A0B0D;
+  --bg-section: #0F1115;
+  --bg-surface: #14161B;
+  --bg-surface-2: #1A1D23;
+  
+  /* Text Colors - High contrast */
+  --text-primary: #F5F7FA;
+  --text-secondary: #B0B7C3;
+  --text-muted: #7C8496;
+  
+  /* Primary Accent - ONE color only */
+  --accent-primary: #3B82F6;
+  --accent-hover: #60A5FA;
+  --accent-soft: rgba(59, 130, 246, 0.15);
+  
+  /* Status Colors */
+  --success: #22C55E;
+  --success-bg: rgba(34, 197, 94, 0.15);
+  --warning: #FACC15;
+  --warning-bg: rgba(250, 204, 21, 0.15);
+  --error: #EF4444;
+  --error-bg: rgba(239, 68, 68, 0.15);
+  
+  /* Borders */
+  --border-subtle: #1F232B;
+  --border-hover: #2A2F38;
+
+  /* Back-compat aliases used in components */
+  --bg: var(--bg-main);
+  --panel: var(--bg-surface);
+  --panel-2: var(--bg-surface-2);
+  --text: var(--text-primary);
+  --border: var(--border-subtle);
+}
+
+body {
+  background: var(--bg-main);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  min-height: 100vh;
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Surface System - NO glassmorphism */
+.surface {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+}
+
+.surface-elevated {
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+}
+
+/* Card hover - minimal elevation only */
+.card-hover {
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.card-hover:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent-primary);
+}
+
+/* Typography */
+h1 {
+  font-size: 56px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+
+h2 {
+  font-size: 32px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+h3 {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+p {
+  font-size: 16px;
+  color: var(--text-secondary);
+}
+
+.text-primary {
+  color: var(--text-primary);
+}
+
+.text-secondary {
+  color: var(--text-secondary);
+}
+
+.text-muted {
+  color: var(--text-muted);
+}
+
+/* Accent color */
+.text-accent {
+  color: var(--accent-primary);
+}
+
+.bg-accent {
+  background: var(--accent-primary);
+}
+
+.bg-accent-soft {
+  background: var(--accent-soft);
+}
+
+/* Status badges */
+.badge-verified {
+  background: var(--success-bg);
+  color: var(--success);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.badge-warning {
+  background: var(--warning-bg);
+  color: var(--warning);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+.badge-error {
+  background: var(--error-bg);
+  color: var(--error);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 6px;
+}

@@ -1,0 +1,13 @@
+{
+  "filter_paths": [
+    "lib",
+    "node_modules",
+    "out",
+    "cache"
+  ],
+  "exclude": [
+    "naming-convention",
+    "solc-version"
+  ],
+  "solc_disable_warnings": true
+}
