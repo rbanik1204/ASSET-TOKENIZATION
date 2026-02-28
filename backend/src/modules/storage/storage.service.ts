@@ -19,9 +19,9 @@ export class StorageService {
   private readonly pinataGateway: string;
 
   constructor(private readonly configService: ConfigService) {
-    this.pinataApiKey = this.configService.get<string>('ipfs.pinataApiKey') || '';
-    this.pinataSecret = this.configService.get<string>('ipfs.pinataSecretKey') || '';
-    this.pinataGateway = this.configService.get<string>('ipfs.gateway') || 'https://gateway.pinata.cloud/ipfs';
+    this.pinataApiKey = this.configService.get<string>('ipfs.pinata.apiKey') || '';
+    this.pinataSecret = this.configService.get<string>('ipfs.pinata.secretKey') || '';
+    this.pinataGateway = this.configService.get<string>('ipfs.pinata.gateway') || 'https://gateway.pinata.cloud/ipfs';
   }
 
   /**

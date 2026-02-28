@@ -1,11 +1,12 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { useAlgorand } from '../contexts/AlgorandContext';
-import { useAssetRegistry } from '../contexts/AssetRegistryContext';
+import { useAssetRegistry, type PrepareResult } from '../contexts/AssetRegistryContext';
 import { useNavigate } from 'react-router';
 import {
   FileText, Lock, CheckCircle, Wallet,
   Building2, Zap, Leaf, Cpu, Gem, BarChart3,
   Shield, ArrowRight, Layers, Send, Search,
+  Upload, Link2, Globe, Loader2,
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { PageTransition } from '../components/motion/MotionSystem';
@@ -129,8 +130,9 @@ const DEMO_TOKENS: DemoToken[] = [
 const FLOW_STEPS = [
   { label: 'Connect Wallet', icon: Wallet, desc: 'Link your Algorand wallet' },
   { label: 'Define Asset', icon: FileText, desc: 'Set name, supply, metadata' },
-  { label: 'Mint ASA', icon: Layers, desc: 'Deploy on-chain token' },
-  { label: 'Verify', icon: Shield, desc: 'Submit for compliance review' },
+  { label: 'Pin to IPFS', icon: Upload, desc: 'ARC-3 metadata on IPFS' },
+  { label: 'Mint ASA', icon: Layers, desc: 'Sign & deploy on-chain' },
+  { label: 'Verify Link', icon: Link2, desc: 'ASA ↔ IPFS ↔ DB record' },
 ];
 
 // ─── Tilt card ────────────────────────────────────────────────────────────
@@ -194,7 +196,7 @@ const TiltCard: React.FC<{
 // ═══════════════════════════════════════════════════════════════════════════
 export const Tokenize: React.FC = () => {
   const { address, network } = useAlgorand();
-  const { createASA } = useAssetRegistry();
+  const { createASA, prepareTokenization, signAndSubmitASA, confirmTokenization } = useAssetRegistry();
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
@@ -213,11 +215,17 @@ export const Tokenize: React.FC = () => {
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [step, setStep] = useState<'form' | 'review' | 'success'>('form');
+  const [step, setStep] = useState<'form' | 'review' | 'minting' | 'success'>('form');
+
+  // Pipeline progress state
+  const [mintStep, setMintStep] = useState<'preparing' | 'signing' | 'confirming' | 'done'>('preparing');
+  const [prepResult, setPrepResult] = useState<PrepareResult | null>(null);
+  const [mintResult, setMintResult] = useState<{ txId: string; asaId: number; recordId: string } | null>(null);
+  const [mintError, setMintError] = useState<string | null>(null);
 
   const categories = [
-    'real-estate', 'commodities', 'securities',
-    'collectibles', 'carbon-credits', 'other',
+    'real-estate', 'energy', 'commodities', 'infrastructure',
+    'securities', 'other',
   ];
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -238,9 +246,16 @@ export const Tokenize: React.FC = () => {
   };
 
   const confirmCreation = async () => {
+    if (!address) return;
     setIsSubmitting(true);
+    setStep('minting');
+    setMintStep('preparing');
+    setMintError(null);
+
     try {
-      await createASA({
+      // ── STEP 1: Prepare — IPFS pin + unsigned txn ─────
+      toast.info('Pinning ARC-3 metadata to IPFS...');
+      const prep = await prepareTokenization({
         name: formData.name,
         unitName: formData.unitName,
         totalSupply: parseInt(formData.totalSupply),
@@ -255,15 +270,138 @@ export const Tokenize: React.FC = () => {
         clawback: formData.clawback || undefined,
         creator: address,
       });
+      setPrepResult(prep);
+      toast.success(`IPFS pinned — CID: ${prep.ipfs.cid.slice(0, 12)}...`);
+
+      // ── STEP 2: Sign with wallet ──────────────────────
+      setMintStep('signing');
+      toast.info('Please sign the transaction in your wallet...');
+      const { txId, asaId } = await signAndSubmitASA(prep.unsignedTxn);
+      toast.success(`ASA created on-chain — ID: ${asaId}`);
+
+      // ── STEP 3: Confirm — link ASA ↔ IPFS ↔ DB ───────
+      setMintStep('confirming');
+      toast.info('Linking ASA to database record...');
+      await confirmTokenization(prep.assetRecordId, txId, asaId);
+
+      setMintResult({ txId, asaId, recordId: prep.assetRecordId });
+      setMintStep('done');
       setStep('success');
-      toast.success('Asset created successfully!');
-    } catch (error) {
-      toast.error('Failed to create asset');
-      console.error(error);
+      toast.success('Asset fully tokenized on Algorand!');
+    } catch (error: any) {
+      const msg = error?.message || 'Tokenization failed';
+      setMintError(msg);
+      toast.error(msg);
+      console.error('Tokenization error:', error);
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  // ─── MINTING PROGRESS SCREEN ─────────────────────────────────────────
+  if (step === 'minting') {
+    const steps = [
+      { key: 'preparing', label: 'Pinning ARC-3 Metadata to IPFS', icon: Upload },
+      { key: 'signing', label: 'Sign Transaction in Wallet', icon: Wallet },
+      { key: 'confirming', label: 'Linking ASA ↔ IPFS ↔ DB Record', icon: Link2 },
+    ];
+    const stageOrder = ['preparing', 'signing', 'confirming', 'done'];
+    const currentIdx = stageOrder.indexOf(mintStep);
+
+    return (
+      <PageTransition>
+        <div style={{ maxWidth: '600px', margin: '0 auto', padding: '40px 0' }}>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            style={glass({ padding: '48px 32px', textAlign: 'center' })}
+          >
+            <div style={{
+              width: '64px', height: '64px', borderRadius: '50%',
+              background: 'rgba(0,224,138,0.12)',
+              border: '1px solid rgba(0,224,138,0.3)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              margin: '0 auto 20px',
+              animation: 'spin 2s linear infinite',
+            }}>
+              <Loader2 style={{ width: '28px', height: '28px', color: '#00e08a', animation: 'spin 1s linear infinite' }} />
+            </div>
+            <h2 style={{ fontSize: '22px', fontWeight: 800, color: '#f0f6f3', marginBottom: '24px' }}>
+              Tokenizing Asset...
+            </h2>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', textAlign: 'left' }}>
+              {steps.map((s, i) => {
+                const isDone = currentIdx > i;
+                const isCurrent = stageOrder[i] === mintStep;
+                const Icon = s.icon;
+                return (
+                  <div key={s.key} style={{
+                    display: 'flex', alignItems: 'center', gap: '12px',
+                    padding: '12px 16px', borderRadius: '10px',
+                    background: isCurrent ? 'rgba(0,224,138,0.06)' : 'rgba(255,255,255,0.02)',
+                    border: isCurrent ? '1px solid rgba(0,224,138,0.2)' : '1px solid rgba(255,255,255,0.04)',
+                    transition: 'all 0.3s',
+                  }}>
+                    <div style={{
+                      width: '32px', height: '32px', borderRadius: '8px',
+                      background: isDone ? 'rgba(0,224,138,0.12)' : 'rgba(255,255,255,0.03)',
+                      border: isDone ? '1px solid rgba(0,224,138,0.3)' : '1px solid rgba(255,255,255,0.06)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      {isDone
+                        ? <CheckCircle style={{ width: '16px', height: '16px', color: '#00e08a' }} />
+                        : isCurrent
+                          ? <Loader2 style={{ width: '16px', height: '16px', color: '#00e08a', animation: 'spin 1s linear infinite' }} />
+                          : <Icon style={{ width: '16px', height: '16px', color: 'rgba(240,246,243,0.2)' }} />}
+                    </div>
+                    <span style={{
+                      fontSize: '13px', fontWeight: 600,
+                      color: isDone ? '#00e08a' : isCurrent ? '#f0f6f3' : 'rgba(240,246,243,0.35)',
+                    }}>
+                      {s.label}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+
+            {mintError && (
+              <div style={{
+                marginTop: '20px', padding: '12px 16px', borderRadius: '10px',
+                background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)',
+                color: '#ef4444', fontSize: '12px', textAlign: 'left',
+              }}>
+                <strong>Error:</strong> {mintError}
+                <button
+                  onClick={() => { setStep('review'); setMintError(null); }}
+                  style={{
+                    display: 'block', marginTop: '8px', padding: '6px 14px',
+                    borderRadius: '6px', border: '1px solid rgba(239,68,68,0.3)',
+                    background: 'rgba(239,68,68,0.08)', color: '#ef4444',
+                    fontSize: '11px', fontWeight: 600, cursor: 'pointer',
+                  }}
+                >
+                  Go Back & Retry
+                </button>
+              </div>
+            )}
+
+            {prepResult && (
+              <div style={{
+                marginTop: '16px', padding: '10px 14px', borderRadius: '8px',
+                background: 'rgba(0,224,138,0.04)', border: '1px solid rgba(0,224,138,0.1)',
+                fontSize: '11px', color: 'rgba(240,246,243,0.5)', textAlign: 'left',
+              }}>
+                IPFS CID: <span style={{ color: '#00e08a', fontFamily: 'monospace' }}>{prepResult.ipfs.cid}</span>
+              </div>
+            )}
+          </motion.div>
+        </div>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </PageTransition>
+    );
+  }
 
   // ─── SUCCESS SCREEN ─────────────────────────────────────────────────────
   if (step === 'success') {
@@ -286,14 +424,82 @@ export const Tokenize: React.FC = () => {
               <CheckCircle style={{ width: '28px', height: '28px', color: '#00e08a' }} />
             </div>
             <h2 style={{ fontSize: '24px', fontWeight: 800, color: '#f0f6f3', marginBottom: '8px' }}>
-              Asset Created
+              Asset Fully Tokenized
             </h2>
             <p style={{
               fontSize: '13px', color: 'rgba(240,246,243,0.5)',
-              marginBottom: '28px', lineHeight: 1.6,
+              marginBottom: '20px', lineHeight: 1.6,
             }}>
-              Your Algorand Standard Asset has been deployed and submitted for verification review.
+              Your Algorand Standard Asset has been minted on-chain, metadata pinned to IPFS,
+              and linked to the platform database.
             </p>
+
+            {/* On-chain details */}
+            {mintResult && (
+              <div style={{
+                display: 'flex', flexDirection: 'column', gap: '6px',
+                marginBottom: '24px', textAlign: 'left',
+                padding: '16px', borderRadius: '12px',
+                background: 'rgba(0,224,138,0.04)',
+                border: '1px solid rgba(0,224,138,0.12)',
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '11px', color: 'rgba(240,246,243,0.4)', fontWeight: 600 }}>ASA ID</span>
+                  <span style={{ fontSize: '12px', color: '#00e08a', fontWeight: 700, fontFamily: 'monospace' }}>
+                    {mintResult.asaId}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '11px', color: 'rgba(240,246,243,0.4)', fontWeight: 600 }}>TX ID</span>
+                  <span style={{ fontSize: '11px', color: '#f0f6f3', fontFamily: 'monospace' }}>
+                    {mintResult.txId.slice(0, 16)}...
+                  </span>
+                </div>
+                {prepResult && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '11px', color: 'rgba(240,246,243,0.4)', fontWeight: 600 }}>IPFS CID</span>
+                    <span style={{ fontSize: '11px', color: '#f0f6f3', fontFamily: 'monospace' }}>
+                      {prepResult.ipfs.cid.slice(0, 16)}...
+                    </span>
+                  </div>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '11px', color: 'rgba(240,246,243,0.4)', fontWeight: 600 }}>Network</span>
+                  <span style={{ fontSize: '11px', color: '#f0f6f3', fontWeight: 600, textTransform: 'uppercase' }}>
+                    {network}
+                  </span>
+                </div>
+                <div style={{ marginTop: '8px', display: 'flex', gap: '8px' }}>
+                  <a
+                    href={`https://testnet.algoexplorer.io/asset/${mintResult.asaId}`}
+                    target="_blank" rel="noopener noreferrer"
+                    style={{
+                      flex: 1, padding: '8px', borderRadius: '8px', textAlign: 'center',
+                      background: 'rgba(0,224,138,0.08)', border: '1px solid rgba(0,224,138,0.2)',
+                      color: '#00e08a', fontSize: '10px', fontWeight: 700, textDecoration: 'none',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px',
+                    }}
+                  >
+                    <Globe style={{ width: '12px', height: '12px' }} /> Explorer
+                  </a>
+                  {prepResult && (
+                    <a
+                      href={prepResult.ipfs.gatewayUrl}
+                      target="_blank" rel="noopener noreferrer"
+                      style={{
+                        flex: 1, padding: '8px', borderRadius: '8px', textAlign: 'center',
+                        background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)',
+                        color: '#818cf8', fontSize: '10px', fontWeight: 700, textDecoration: 'none',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px',
+                      }}
+                    >
+                      <Upload style={{ width: '12px', height: '12px' }} /> IPFS Metadata
+                    </a>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
               <button
                 onClick={() => navigate('/verify')}
@@ -305,6 +511,8 @@ export const Tokenize: React.FC = () => {
               <button
                 onClick={() => {
                   setStep('form');
+                  setMintResult(null);
+                  setPrepResult(null);
                   setFormData({
                     name: '', unitName: '', totalSupply: '', decimals: '0', url: '',
                     category: 'real-estate', description: '', defaultFrozen: false,
@@ -520,15 +728,23 @@ export const Tokenize: React.FC = () => {
           transition={{ delay: 0.18, duration: 0.5 }}
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(4, 1fr)',
-            gap: '12px',
+            gridTemplateColumns: 'repeat(5, 1fr)',
+            gap: '10px',
             marginBottom: '32px',
           }}
         >
           {FLOW_STEPS.map((s, i) => {
             const Icon = s.icon;
-            const isComplete = address ? i === 0 : false;
-            const isCurrent = address ? i === 1 : i === 0;
+            // Determine which step we're on
+            let activeStep = 0;
+            if (address) activeStep = 1;
+            if (step === 'review') activeStep = 2;
+            if (step === 'minting' && mintStep === 'preparing') activeStep = 2;
+            if (step === 'minting' && mintStep === 'signing') activeStep = 3;
+            if (step === 'minting' && mintStep === 'confirming') activeStep = 4;
+            if (step === 'success') activeStep = 5;
+            const isComplete = i < activeStep;
+            const isCurrent = i === activeStep;
             return (
               <motion.div
                 key={s.label}

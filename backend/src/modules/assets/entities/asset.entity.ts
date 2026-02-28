@@ -18,6 +18,14 @@ export enum VerificationStatus {
   REJECTED = 'rejected',
 }
 
+export enum TokenizationStatus {
+  DRAFT = 'draft',
+  METADATA_PINNED = 'metadata_pinned',
+  ASA_CREATED = 'asa_created',
+  FULLY_LINKED = 'fully_linked',
+  FAILED = 'failed',
+}
+
 @Entity('assets')
 export class Asset {
   @PrimaryGeneratedColumn('uuid')
@@ -73,6 +81,31 @@ export class Asset {
   @Column({ name: 'metadata_hash', length: 64, nullable: true })
   metadataHash: string;
 
+  // ── Compliance / Freeze / Clawback flags ───────────────────
+  @Column({ name: 'default_frozen', default: false })
+  defaultFrozen: boolean;
+
+  @Column({ name: 'is_frozen', default: false })
+  isFrozen: boolean;
+
+  @Column({ name: 'clawback_enabled', default: true })
+  clawbackEnabled: boolean;
+
+  @Column({ name: 'freeze_enabled', default: true })
+  freezeEnabled: boolean;
+
+  @Column({ name: 'compliance_note', type: 'text', nullable: true })
+  complianceNote: string;
+
+  // ── Tokenization pipeline status ───────────────────────────
+  @Column({
+    name: 'tokenization_status',
+    type: 'enum',
+    enum: TokenizationStatus,
+    default: TokenizationStatus.DRAFT,
+  })
+  tokenizationStatus: TokenizationStatus;
+
   // ── Verification ───────────────────────────────────────────
   @Column({
     name: 'verification_status',
@@ -91,6 +124,9 @@ export class Asset {
 
   @Column({ name: 'ipfs_metadata_uri', nullable: true })
   ipfsMetadataUri: string;
+
+  @Column({ name: 'ipfs_document_cids', type: 'simple-json', nullable: true })
+  ipfsDocumentCids: string[];
 
   // ── Owner ──────────────────────────────────────────────────
   @Column({ name: 'owner_address', length: 58 })
