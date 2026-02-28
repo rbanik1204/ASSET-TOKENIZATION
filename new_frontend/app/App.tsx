@@ -4,11 +4,13 @@ import { router } from './routes';
 import { AlgorandProvider } from './contexts/AlgorandContext';
 import { AssetRegistryProvider } from './contexts/AssetRegistryContext';
 import { GovernanceProvider } from './contexts/GovernanceContext';
+import { KycProvider } from './contexts/KycContext';
 import { Toaster } from 'sonner';
 
 export default function App() {
   return (
     <AlgorandProvider>
+      <KycProvider>
       <AssetRegistryProvider>
         <GovernanceProvider>
           <RouterProvider router={router} />
@@ -26,6 +28,7 @@ export default function App() {
           />
         </GovernanceProvider>
       </AssetRegistryProvider>
+      </KycProvider>
     </AlgorandProvider>
   );
 }

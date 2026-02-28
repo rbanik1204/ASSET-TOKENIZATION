@@ -7,10 +7,12 @@ import { TokenizationService } from './tokenization.service';
 import { Asset } from './entities/asset.entity';
 import { Transaction } from './entities/transaction.entity';
 import { AssetHolder } from './entities/asset-holder.entity';
+import { KycModule } from '../kyc/kyc.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Asset, Transaction, AssetHolder]),
+    KycModule,
   ],
   controllers: [AssetsController, TokenizationController],
   providers: [AssetsService, TokenizationService],

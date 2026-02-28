@@ -1,11 +1,12 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { useAlgorand } from '../contexts/AlgorandContext';
 import { useAssetRegistry, type PrepareResult } from '../contexts/AssetRegistryContext';
+import { useKyc } from '../contexts/KycContext';
 import { useNavigate } from 'react-router';
 import {
   FileText, Lock, CheckCircle, Wallet,
   Building2, Zap, Leaf, Cpu, Gem, BarChart3,
-  Shield, ArrowRight, Layers, Send, Search,
+  Shield, ShieldCheck, ArrowRight, Layers, Send, Search,
   Upload, Link2, Globe, Loader2,
 } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -197,6 +198,7 @@ const TiltCard: React.FC<{
 export const Tokenize: React.FC = () => {
   const { address, network } = useAlgorand();
   const { createASA, prepareTokenization, signAndSubmitASA, confirmTokenization } = useAssetRegistry();
+  const { isVerified: kycVerified, kycStatus } = useKyc();
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
@@ -623,12 +625,13 @@ export const Tokenize: React.FC = () => {
             </button>
             <button
               onClick={confirmCreation}
-              disabled={isSubmitting}
+              disabled={isSubmitting || !kycVerified}
+              title={!kycVerified ? 'Complete KYC verification first' : undefined}
               style={{
                 ...btnPrimary,
                 flex: 1,
-                opacity: isSubmitting ? 0.5 : 1,
-                cursor: isSubmitting ? 'wait' : 'pointer',
+                opacity: (isSubmitting || !kycVerified) ? 0.5 : 1,
+                cursor: isSubmitting ? 'wait' : !kycVerified ? 'not-allowed' : 'pointer',
               }}
             >
               <Send style={{ width: '14px', height: '14px' }} />
@@ -718,6 +721,57 @@ export const Tokenize: React.FC = () => {
               Connect your Algorand wallet to create and deploy real tokenized assets.
               Browse demo examples below to understand the system.
             </span>
+          </motion.div>
+        )}
+
+        {/* ── KYC Gate Banner ──────────────────────────────────────── */}
+        {address && !kycVerified && (
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.14 }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              padding: '16px 20px',
+              marginBottom: '24px',
+              borderRadius: '12px',
+              background: 'rgba(255,170,50,0.06)',
+              border: '1px solid rgba(255,170,50,0.25)',
+            }}
+          >
+            <ShieldCheck style={{ width: '20px', height: '20px', color: '#ffaa32', flexShrink: 0 }} />
+            <div style={{ flex: 1 }}>
+              <span style={{ fontSize: '13px', color: 'rgba(240,246,243,0.7)', lineHeight: 1.5 }}>
+                <strong style={{ color: '#ffaa32' }}>
+                  {kycStatus?.status === 'PENDING' ? 'KYC Pending Review' : 'KYC Verification Required'}
+                </strong>
+                {' — '}
+                {kycStatus?.status === 'PENDING'
+                  ? 'Your identity verification is under review. You will be able to tokenize once approved.'
+                  : kycStatus?.status === 'REJECTED'
+                    ? 'Your KYC was rejected. Please re-submit with valid information.'
+                    : 'Complete biometric identity verification before creating tokenized assets.'}
+              </span>
+            </div>
+            <button
+              onClick={() => navigate('/kyc')}
+              style={{
+                padding: '8px 18px',
+                borderRadius: '8px',
+                background: 'rgba(255,170,50,0.15)',
+                border: '1px solid rgba(255,170,50,0.3)',
+                color: '#ffaa32',
+                fontSize: '12px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                letterSpacing: '0.5px',
+              }}
+            >
+              {kycStatus?.status === 'PENDING' ? 'VIEW STATUS' : kycStatus?.status === 'REJECTED' ? 'RETRY KYC' : 'START KYC'}
+            </button>
           </motion.div>
         )}
 

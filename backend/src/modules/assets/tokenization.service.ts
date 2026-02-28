@@ -9,6 +9,7 @@ import { createHash } from 'crypto';
 
 import { AlgorandService } from '../wallet/services/algorand.service';
 import { StorageService } from '../storage/storage.service';
+import { KycService } from '../kyc/kyc.service';
 import { Asset, AssetCategory, TokenizationStatus, VerificationStatus } from './entities/asset.entity';
 import { Transaction, TransactionType } from './entities/transaction.entity';
 import { AssetHolder } from './entities/asset-holder.entity';
@@ -41,6 +42,7 @@ export class TokenizationService {
     private readonly holderRepo: Repository<AssetHolder>,
     private readonly algorand: AlgorandService,
     private readonly storage: StorageService,
+    private readonly kycService: KycService,
   ) {}
 
   // ═══════════════════════════════════════════════════════════════
@@ -48,6 +50,15 @@ export class TokenizationService {
   // ═══════════════════════════════════════════════════════════════
 
   async prepare(dto: PrepareTokenizationDto) {
+    // ── 0. KYC gate — creator must be verified ────────────
+    const kycVerified = await this.kycService.isVerified(dto.creator);
+    if (!kycVerified) {
+      throw new ForbiddenException(
+        'KYC verification required before tokenizing assets. ' +
+        'Please complete your identity verification first.',
+      );
+    }
+
     // ── 1a. Enforce category-specific supply rules ────────
     this.enforceSupplyRules(dto);
 

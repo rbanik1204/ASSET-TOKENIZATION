@@ -12,6 +12,10 @@ interface KycUser {
   fullName: string;
   submittedAt: string;
   status: 'pending' | 'approved' | 'rejected';
+  livenessScore?: number;
+  faceMatchScore?: number;
+  faceMatchPassed?: boolean;
+  ipfsAuditCid?: string;
 }
 
 const AdminPage: React.FC = () => {
@@ -25,9 +29,12 @@ const AdminPage: React.FC = () => {
   useEffect(() => {
     if (tab === 'kyc') {
       setLoading(true);
-      fetch('/api/kyc/pending')
+      fetch('http://localhost:3001/api/v1/kyc/pending')
         .then(r => r.json())
-        .then(d => setKycQueue(d.submissions || []))
+        .then(d => {
+          const data = d.data ?? d;
+          setKycQueue(data.submissions || []);
+        })
         .catch(() => setKycQueue([]))
         .finally(() => setLoading(false));
     }
@@ -56,7 +63,7 @@ const AdminPage: React.FC = () => {
   const handleKycDecision = async (walletAddress: string, approve: boolean) => {
     const reason = approve ? '' : (prompt('Rejection reason:') || '');
     try {
-      const res = await fetch('/api/kyc/review', {
+      const res = await fetch('http://localhost:3001/api/v1/kyc/review', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ walletAddress, approve, reason, reviewerAddress: address }),
@@ -232,6 +239,27 @@ const AdminPage: React.FC = () => {
                 }`}>
                   {user.status}
                 </span>
+              </div>
+              {/* Biometric scores */}
+              <div className="grid grid-cols-3 gap-3 mb-4 text-sm">
+                <div className="border border-foreground/30 p-2">
+                  <div className="text-xs text-muted-foreground uppercase">LIVENESS</div>
+                  <div className="font-bold text-accent">
+                    {user.livenessScore ? `${(Number(user.livenessScore) * 100).toFixed(0)}%` : 'N/A'}
+                  </div>
+                </div>
+                <div className="border border-foreground/30 p-2">
+                  <div className="text-xs text-muted-foreground uppercase">FACE MATCH</div>
+                  <div className={`font-bold ${user.faceMatchPassed ? 'text-green-400' : 'text-yellow-400'}`}>
+                    {user.faceMatchScore ? `${(Number(user.faceMatchScore) * 100).toFixed(0)}%` : 'N/A'}
+                  </div>
+                </div>
+                <div className="border border-foreground/30 p-2">
+                  <div className="text-xs text-muted-foreground uppercase">IPFS AUDIT</div>
+                  <div className="font-mono text-xs text-accent truncate">
+                    {user.ipfsAuditCid ? user.ipfsAuditCid.slice(0, 12) + '...' : 'N/A'}
+                  </div>
+                </div>
               </div>
               {user.status === 'pending' && (
                 <div className="flex gap-2">
