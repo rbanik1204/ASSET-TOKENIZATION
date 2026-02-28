@@ -1,9 +1,10 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardBody } from '../ui/Card';
 import { Badge } from '../ui/Badge';
-import Link from 'next/link';
+import { AsaBadge } from '../algorand/AsaBadge';
+import { BuyFractionModal } from '../algorand/BuyFractionModal';
 
 interface AssetCardProps {
   asset: {
@@ -18,10 +19,14 @@ interface AssetCardProps {
     pricePerToken: { quote: string; amount: string };
     availableSupply: { amount: string };
     marketCap: { quote: string; amount: string };
+    asaId?: number;
+    asaNetwork?: 'testnet' | 'mainnet';
   };
 }
 
 export function AssetCard({ asset }: AssetCardProps) {
+  const [showBuyModal, setShowBuyModal] = useState(false);
+  
   const verifiedTitle = asset.verificationSummary?.length
     ? asset.verificationSummary.join('\n')
     : 'Verified asset';
@@ -47,23 +52,29 @@ export function AssetCard({ asset }: AssetCardProps) {
   };
 
   return (
-    <Link href={`/assets/${asset.id}`}>
-      <Card hover className="overflow-hidden group">
-        {/* Asset Image */}
-        <div className="relative h-48 bg-[#14161B]">
-          {asset.imageUrl ? (
-            <img
-              src={asset.imageUrl}
-              alt={asset.name}
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-[#7C8496]">
-              <svg className="w-16 h-16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-              </svg>
-            </div>
-          )}
+    <>
+      <div onClick={(e) => {
+        // Only navigate if not clicking the buy button
+        if (!(e.target as HTMLElement).closest('button')) {
+          window.location.href = `/assets/${asset.id}`;
+        }
+      }} style={{cursor: 'pointer'}}>
+        <Card hover className="overflow-hidden group">
+          {/* Asset Image */}
+          <div className="relative h-48 bg-[#14161B]">
+            {asset.imageUrl ? (
+              <img
+                src={asset.imageUrl}
+                alt={asset.name}
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-[#7C8496]">
+                <svg className="w-16 h-16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+              </div>
+            )}
           
           {/* Verification Badge */}
           <div className="absolute top-3 right-3">
@@ -123,8 +134,54 @@ export function AssetCard({ asset }: AssetCardProps) {
               {asset.marketCap.amount} {asset.marketCap.quote}
             </p>
           </div>
+
+          {/* Algorand ASA Badge */}
+          {asset.asaId && (
+            <div className="pt-3 border-t border-[#1F232B]">
+              <AsaBadge 
+                asaId={asset.asaId} 
+                network={asset.asaNetwork || 'testnet'}
+              />
+            </div>
+          )}
+
+          {/* Buy Button */}
+          {asset.asaId && (
+            <div className="pt-3">
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  setShowBuyModal(true);
+                }}
+                className="w-full py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 rounded-lg font-medium transition-all"
+              >
+                Buy Fraction
+              </button>
+            </div>
+          )}
         </CardBody>
-      </Card>
-    </Link>
+        </Card>
+      </div>
+
+      {/* Buy Fraction Modal */}
+      {showBuyModal && asset.asaId && (
+        <BuyFractionModal
+          asset={{
+            id: asset.id,
+            name: asset.name,
+            asaId: asset.asaId,
+            pricePerUnit: parseFloat(asset.pricePerToken.amount),
+            availableSupply: parseInt(asset.availableSupply.amount),
+            asaNetwork: asset.asaNetwork
+          }}
+          isOpen={showBuyModal}
+          onClose={() => setShowBuyModal(false)}
+          onSuccess={() => {
+            // Reload asset data
+            console.log('Purchase successful, reloading...');
+          }}
+        />
+      )}
+    </>
   );
 }

@@ -338,7 +338,41 @@ export default function ListAssetPage() {
       setMetadataURI(uploadedMetadataURI);
       console.log('✅ Metadata uploaded! URI:', uploadedMetadataURI);
       
-      // 4. Deploy ERC20 token via TokenFactory
+      // 4. Create Algorand ASA (if Algorand wallet connected)
+      console.log('🟣 Creating Algorand Standard Asset...');
+      try {
+        const asaResponse = await fetch('/api/algorand/create-asa', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            assetName: formData.assetName.substring(0, 32),
+            unitName: formData.tokenSymbol.substring(0, 8),
+            totalSupply: parseInt(formData.totalSupply),
+            decimals: 0,
+            metadata: {
+              assetType: formData.assetType,
+              location: formData.location.address,
+              valuation: parseFloat(formData.valuationAmount),
+              documentHash: uploadedMetadataURI,
+              description: formData.description
+            },
+            url: typeof window !== 'undefined' ? `${window.location.origin}/assets/pending` : uploadedMetadataURI
+          })
+        });
+        const asaResult = await asaResponse.json();
+        if (asaResult.success) {
+          console.log('✅ ASA created! ID:', asaResult.asaId);
+          console.log('🔗 Explorer:', asaResult.explorerUrl);
+          alert(`Algorand ASA created! ID: ${asaResult.asaId}\n\nView on AlgoExplorer:\n${asaResult.explorerUrl}`);
+        } else {
+          console.warn('⚠️ ASA creation failed:', asaResult.message);
+        }
+      } catch (asaError) {
+        console.warn('⚠️ ASA creation failed:', asaError);
+        // Continue with ERC20 deployment even if ASA fails
+      }
+      
+      // 5. Deploy ERC20 token via TokenFactory
       console.log('Deploying ERC20 token for asset...');
       
       if (!contracts.TOKEN_FACTORY) {

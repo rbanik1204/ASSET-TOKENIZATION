@@ -1,13 +1,17 @@
 {
-  "hosting": [
-    {
-      "target": "asset-linked-c4ef2",
-      "source": "apps/frontend",
-      "ignore": [
-        "firebase.json",
-        "**/.*",
-        "**/node_modules/**"
-      ]
-    }
-  ]
+  "hosting": {
+    "site": "asset-linked-c4ef2",
+    "public": "new_frontend/dist",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
 }

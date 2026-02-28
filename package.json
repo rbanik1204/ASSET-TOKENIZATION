@@ -19,6 +19,11 @@
     "contracts:test": "cd contracts && forge test"
   },
   "dependencies": {
+    "@blockshake/defly-connect": "^1.2.1",
+    "@perawallet/connect": "^1.5.1",
+    "@randlabs/myalgo-connect": "^1.4.2",
+    "@txnlab/use-wallet": "^4.6.0",
+    "algosdk": "^3.5.2",
     "ethers": "^6.16.0"
   },
   "devDependencies": {

@@ -1,0 +1,33 @@
+{
+  "name": "algorand-campus-tokenization",
+  "version": "1.0.0",
+  "description": "Campus Asset Tokenization Platform on Algorand",
+  "scripts": {
+    "compile": "python contracts/asset_registry.py && python contracts/nft_credential.py && python contracts/escrow.py && python contracts/crowdfunding.py",
+    "test": "pytest tests/",
+    "deploy:testnet": "python scripts/deploy.py --network testnet",
+    "deploy:mainnet": "python scripts/deploy.py --network mainnet"
+  },
+  "dependencies": {
+    "algosdk": "^2.7.0",
+    "@txnlab/use-wallet": "^2.8.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "pyteal": "^0.25.0",
+    "pytest": "^7.4.0",
+    "algokit": "^1.10.0"
+  },
+  "keywords": [
+    "algorand",
+    "blockchain",
+    "campus",
+    "tokenization",
+    "nft",
+    "defi",
+    "education"
+  ],
+  "author": "Your Name",
+  "license": "MIT"
+}

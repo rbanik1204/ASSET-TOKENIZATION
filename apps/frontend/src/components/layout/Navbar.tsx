@@ -6,6 +6,8 @@ import { usePathname } from 'next/navigation';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useAccount } from 'wagmi';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
+import AlgorandWalletButton from '@/components/algorand/AlgorandWalletButton';
+import { ChainSelectorStandalone } from '@/components/algorand/ChainSelectorStandalone';
 
 function shortenAddress(address: string) {
   if (!address) return '';
@@ -46,7 +48,8 @@ export function Navbar() {
   const navItems = [
     { href: '/', label: 'Home' },
     { href: '/marketplace', label: 'Marketplace' },
-    { href: '/list-asset', label: 'List Asset', requireWallet: true, highlight: true },
+    { href: '/algorand-demo', label: '🟣 Algorand', highlight: true, algorand: true },
+    { href: '/list-asset', label: 'List Asset', requireWallet: true },
     { href: '/portfolio', label: 'Portfolio', requireWallet: true },
     { href: '/history', label: 'History', requireWallet: true },
     { href: '/sell', label: 'Sell', requireWallet: true },
@@ -79,7 +82,11 @@ export function Navbar() {
                   if (item.requireWallet && !isConnected) e.preventDefault();
                 }}
                 className={`px-4 py-2 rounded-lg font-semibold transition-colors duration-200 ${
-                  item.highlight
+                  item.algorand
+                    ? pathname === item.href
+                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white'
+                      : 'bg-gradient-to-r from-blue-600/10 to-purple-600/10 text-blue-400 border border-blue-600/30 hover:from-blue-600/20 hover:to-purple-600/20'
+                    : item.highlight
                     ? pathname === item.href
                       ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white'
                       : 'bg-gradient-to-r from-green-600/10 to-emerald-600/10 text-green-400 border border-green-600/30 hover:from-green-600/20 hover:to-emerald-600/20'
@@ -94,8 +101,10 @@ export function Navbar() {
           </div>
 
           {/* Wallet Connection */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <ChainSelectorStandalone />
             <NotificationBell />
+            <AlgorandWalletButton />
             <ConnectButton.Custom>
               {({
                 account,

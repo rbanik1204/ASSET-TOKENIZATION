@@ -85,3 +85,19 @@ ui-debug.log
 
 # Vercel
 .vercel/
+
+# Sensitive deployer/account files
+deployer_account.txt
+*_mnemonic*
+*_secret*
+*_private_key*
+
+# PyTeal compiled output (can be regenerated)
+contracts/deploy/__pycache__/
+*.pyc
+
+# Video assets (too large for GitHub)
+Video/
+
+# Sandbox (embedded git repo)
+sandbox/

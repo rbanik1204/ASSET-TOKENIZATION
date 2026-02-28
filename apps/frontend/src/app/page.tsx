@@ -5,6 +5,8 @@ import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/Button';
 import Link from 'next/link';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
+import AlgorandWalletButton from '@/components/algorand/AlgorandWalletButton';
+import { ChainSelectorStandalone } from '@/components/algorand/ChainSelectorStandalone';
 
 export default function HomePage() {
   return (
@@ -22,13 +24,27 @@ export default function HomePage() {
                 Own fractional shares of real estate, equipment, and other high-value assets. 
                 Trade instantly, earn income, and build wealth with complete transparency.
               </p>
-              <div className="flex flex-wrap gap-4">
-                <Link href="/marketplace">
-                  <Button size="lg" variant="primary">
-                    Explore Assets
-                  </Button>
-                </Link>
-                <ConnectButton />
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-wrap gap-4">
+                  <Link href="/marketplace">
+                    <Button size="lg" variant="primary">
+                      Explore Assets
+                    </Button>
+                  </Link>
+                  <Link href="/algorand-demo">
+                    <Button size="lg" variant="outline" className="border-blue-500 text-blue-400 hover:bg-blue-500/10">
+                      🟣 Algorand Demo
+                    </Button>
+                  </Link>
+                </div>
+                <div className="flex flex-wrap gap-4 items-center">
+                  <ChainSelectorStandalone />
+                  <ConnectButton />
+                  <AlgorandWalletButton />
+                </div>
+                <p className="text-sm text-gray-400 mt-2">
+                  💡 Try Algorand: Ultra-fast (4.5s), ultra-cheap ($0.001), carbon-negative blockchain
+                </p>
               </div>
             </div>
           </div>
@@ -70,6 +86,94 @@ export default function HomePage() {
                 <p className="mt-2 text-[#B0B7C3]">{step.description}</p>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Algorand Features Section */}
+      <section className="py-20 bg-gradient-to-br from-blue-900/20 via-purple-900/20 to-blue-900/20 relative overflow-hidden">
+        <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-10"></div>
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-12">
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500/10 border border-blue-500/30 rounded-full mb-4">
+              <span className="text-2xl">🟣</span>
+              <span className="text-blue-400 font-semibold">Powered by Algorand</span>
+            </div>
+            <h2 className="text-4xl font-bold mb-4 text-[#F5F7FA]">Why Algorand for Campus Assets?</h2>
+            <p className="text-xl text-[#B0B7C3]">Revolutionary blockchain purpose-built for real-world tokenization</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+            {[
+              {
+                icon: '⚡',
+                title: '4.5 Second Finality',
+                description: 'Transactions confirm in under 5 seconds - faster than credit cards',
+                stat: '4.5s',
+              },
+              {
+                icon: '💰',
+                title: 'Ultra-Low Fees',
+                description: 'Only $0.001 per transaction - 1000x cheaper than Ethereum',
+                stat: '$0.001',
+              },
+              {
+                icon: '🌱',
+                title: 'Carbon Negative',
+                description: 'Environmentally friendly Layer-1 blockchain',
+                stat: '< 0.0',
+              },
+              {
+                icon: '🔒',
+                title: 'Enterprise Security',
+                description: 'Pure Proof-of-Stake with instant finality - no forks',
+                stat: '100%',
+              },
+              {
+                icon: '🪙',
+                title: 'Native ASAs',
+                description: 'Create campus tokens (dorm rooms, gym passes) with built-in features',
+                stat: 'Layer-1',
+              },
+              {
+                icon: '📱',
+                title: 'Mobile-First',
+                description: 'Seamless wallet experience with Pera & Defly on iOS/Android',
+                stat: 'Easy',
+              },
+            ].map((feature, index) => (
+              <div key={index} className="bg-[#0F1115]/80 backdrop-blur-sm p-6 rounded-lg border border-blue-500/20 hover:border-blue-500/40 transition-all hover:scale-105">
+                <div className="text-4xl mb-3">{feature.icon}</div>
+                <div className="flex items-baseline justify-between mb-2">
+                  <h3 className="text-lg font-semibold text-[#F5F7FA]">{feature.title}</h3>
+                  <span className="text-blue-400 font-bold text-sm">{feature.stat}</span>
+                </div>
+                <p className="text-sm text-[#B0B7C3]">{feature.description}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="bg-gradient-to-r from-blue-600/10 to-purple-600/10 border border-blue-500/30 rounded-xl p-8 text-center">
+            <h3 className="text-2xl font-bold text-[#F5F7FA] mb-4">Ready to Experience Algorand?</h3>
+            <p className="text-[#B0B7C3] mb-6 max-w-2xl mx-auto">
+              Connect your Pera or Defly wallet and try creating campus asset tokens, sending payments, 
+              and experiencing the fastest blockchain for real-world assets.
+            </p>
+            <div className="flex flex-wrap justify-center gap-4">
+              <Link href="/algorand-demo">
+                <Button size="lg" className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
+                  🚀 Launch Algorand Demo
+                </Button>
+              </Link>
+              <a href="https://bank.testnet.algorand.network/" target="_blank" rel="noopener noreferrer">
+                <Button size="lg" variant="outline" className="border-blue-500 text-blue-400 hover:bg-blue-500/10">
+                  💧 Get Free Testnet ALGO
+                </Button>
+              </a>
+            </div>
+            <p className="text-xs text-gray-500 mt-4">
+              💡 Testnet ready: Your wallet <span className="font-mono text-blue-400">CZBNQ...E6A</span> is funded and ready to go!
+            </p>
           </div>
         </div>
       </section>
