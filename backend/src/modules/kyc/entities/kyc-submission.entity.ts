@@ -29,26 +29,26 @@ export class KycSubmission {
   @Column({ name: 'wallet_address', length: 58 })
   walletAddress: string;
 
-  @Column({ name: 'full_name', length: 200, nullable: true })
+  @Column({ name: 'full_name', type: 'varchar', length: 200, nullable: true })
   fullName: string | null;
 
   @Column({ name: 'date_of_birth', type: 'date', nullable: true })
   dateOfBirth: Date | null;
 
-  @Column({ length: 100, nullable: true })
+  @Column({ type: 'varchar', length: 100, nullable: true })
   nationality: string | null;
 
-  @Column({ name: 'document_type', length: 30, nullable: true })
+  @Column({ name: 'document_type', type: 'varchar', length: 30, nullable: true })
   documentType: string | null;                   // passport | drivers_license | national_id
 
-  @Column({ name: 'document_number', length: 50, nullable: true })
+  @Column({ name: 'document_number', type: 'varchar', length: 50, nullable: true })
   documentNumber: string | null;
 
   // ─── Biometric hashes (NEVER raw images) ──────────────────────
-  @Column({ name: 'selfie_biometric_hash', length: 128, nullable: true })
+  @Column({ name: 'selfie_biometric_hash', type: 'varchar', length: 128, nullable: true })
   selfieBiometricHash: string | null;            // SHA-256 of facial feature vector
 
-  @Column({ name: 'document_photo_hash', length: 128, nullable: true })
+  @Column({ name: 'document_photo_hash', type: 'varchar', length: 128, nullable: true })
   documentPhotoHash: string | null;              // SHA-256 of ID photo
 
   // ─── Liveness detection ───────────────────────────────────────
@@ -73,10 +73,10 @@ export class KycSubmission {
   faceMatchPassed: boolean;
 
   // ─── IPFS audit ───────────────────────────────────────────────
-  @Column({ name: 'ipfs_audit_cid', length: 100, nullable: true })
+  @Column({ name: 'ipfs_audit_cid', type: 'varchar', length: 100, nullable: true })
   ipfsAuditCid: string | null;                   // CID of the audit proof JSON
 
-  @Column({ name: 'ipfs_audit_uri', length: 200, nullable: true })
+  @Column({ name: 'ipfs_audit_uri', type: 'varchar', length: 200, nullable: true })
   ipfsAuditUri: string | null;
 
   // ─── Status ───────────────────────────────────────────────────
@@ -90,14 +90,14 @@ export class KycSubmission {
   @Column({ name: 'rejection_reason', type: 'text', nullable: true })
   rejectionReason: string | null;
 
-  @Column({ name: 'reviewed_by', length: 58, nullable: true })
+  @Column({ name: 'reviewed_by', type: 'varchar', length: 58, nullable: true })
   reviewedBy: string | null;                     // admin wallet address
 
   @Column({ name: 'reviewed_at', type: 'timestamptz', nullable: true })
   reviewedAt: Date | null;
 
   // ─── On-chain ─────────────────────────────────────────────────
-  @Column({ name: 'onchain_tx_id', length: 52, nullable: true })
+  @Column({ name: 'onchain_tx_id', type: 'varchar', length: 52, nullable: true })
   onchainTxId: string | null;
 
   @Column({ name: 'onchain_verified', type: 'boolean', default: false })

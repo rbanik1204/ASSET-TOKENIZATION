@@ -30,10 +30,10 @@ export class KycSession {
   })
   status: KycSessionStatus;
 
-  @Column({ name: 'device_info', length: 500, nullable: true })
+  @Column({ name: 'device_info', type: 'varchar', length: 500, nullable: true })
   deviceInfo: string | null;
 
-  @Column({ name: 'mobile_progress', length: 50, nullable: true })
+  @Column({ name: 'mobile_progress', type: 'varchar', length: 50, nullable: true })
   mobileProgress: string | null;         // 'camera' | 'liveness' | 'document' | 'submitting'
 
   @Column({ name: 'expires_at', type: 'timestamptz' })
