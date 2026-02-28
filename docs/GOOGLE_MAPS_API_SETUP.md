@@ -55,7 +55,7 @@ Click **Save**
 **File:** `apps/frontend/.env.local`
 
 ```env
-NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=AIzaSyBfX0z3OTwsjveFSrV32qSumParIhJpHy4
+NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=AIzaSyAWtWYWMLFSnTieA9xRtWuFecpgfKCobnY
 ```
 
 Replace `AIzaSyBfX0z3OTwsjveFSrV32qSumParIhJpHy4` with your actual key.
