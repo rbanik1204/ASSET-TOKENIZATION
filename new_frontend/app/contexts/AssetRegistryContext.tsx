@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import algosdk from 'algosdk';
 import { useAlgorand } from './AlgorandContext';
-import { API_BASE } from '../config/api';
+import { API_BASE, apiFetch } from '../config/api';
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -137,7 +137,7 @@ export const AssetRegistryProvider: React.FC<{ children: React.ReactNode }> = ({
   const refreshAssets = useCallback(async () => {
     if (!address) return;
     try {
-      const res = await fetch(`${API_BASE}/tokenize/owner/${address}`);
+      const res = await apiFetch(`${API_BASE}/tokenize/owner/${address}`);
       if (res.ok) {
         const data = await res.json();
         const list = (data.data || data || []).map((a: any) => ({
@@ -168,7 +168,7 @@ export const AssetRegistryProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // ── STEP 1: Prepare (IPFS pin + unsigned txn) ───────────────
   const prepareTokenization = useCallback(async (params: CreateASAParams): Promise<PrepareResult> => {
-    const res = await fetch(`${API_BASE}/tokenize/prepare`, {
+    const res = await apiFetch(`${API_BASE}/tokenize/prepare`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -218,7 +218,7 @@ export const AssetRegistryProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // ── STEP 3: Confirm with backend ────────────────────────────
   const confirmTokenization = useCallback(async (assetRecordId: string, txId: string, asaId: number) => {
-    const res = await fetch(`${API_BASE}/tokenize/confirm`, {
+    const res = await apiFetch(`${API_BASE}/tokenize/confirm`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

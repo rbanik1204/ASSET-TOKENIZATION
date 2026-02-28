@@ -64,7 +64,7 @@ interface KycContextType {
   refreshStatus: () => Promise<void>;
 }
 
-import { API_BASE } from '../config/api';
+import { API_BASE, apiFetch } from '../config/api';
 
 // ── Context ─────────────────────────────────────────────────────
 
@@ -95,7 +95,7 @@ export const KycProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     setIsLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/kyc/status/${address}`);
+      const res = await apiFetch(`${API_BASE}/kyc/status/${address}`);
       if (res.ok) {
         const data = await res.json();
         setKycStatus(data.data ?? data);
@@ -113,7 +113,7 @@ export const KycProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // ── Submit KYC ─────────────────────────────────────────────
   const submitKyc = useCallback(async (payload: KycSubmitPayload): Promise<KycSubmitResult> => {
-    const res = await fetch(`${API_BASE}/kyc/submit`, {
+    const res = await apiFetch(`${API_BASE}/kyc/submit`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),

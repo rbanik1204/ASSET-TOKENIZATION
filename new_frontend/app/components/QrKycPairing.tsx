@@ -5,7 +5,7 @@ import {
   Camera, Eye, FileText, Shield, RefreshCw, QrCode, X,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { API_BASE, getApiBaseForQR } from '../config/api';
+import { API_BASE, getApiBaseForQR, apiFetch } from '../config/api';
 
 const APP_BASE = typeof window !== 'undefined' ? window.location.origin : '';
 const POLL_INTERVAL = 2000;  // 2 seconds
@@ -56,7 +56,7 @@ const QrKycPairing: React.FC<QrKycPairingProps> = ({ walletAddress, onCompleted,
     setIsCreating(true);
     setError('');
     try {
-      const res = await fetch(`${API_BASE}/kyc/session/create`, {
+      const res = await apiFetch(`${API_BASE}/kyc/session/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ walletAddress }),
@@ -103,7 +103,7 @@ const QrKycPairing: React.FC<QrKycPairingProps> = ({ walletAddress, onCompleted,
 
     const poll = async () => {
       try {
-        const res = await fetch(`${API_BASE}/kyc/session/${session.sessionToken}`);
+        const res = await apiFetch(`${API_BASE}/kyc/session/${session.sessionToken}`);
         const json = await res.json();
         const data = json.data ?? json;
         setSession(data);

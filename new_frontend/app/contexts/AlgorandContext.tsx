@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import algosdk from 'algosdk';
 import { PeraWalletConnect } from '@perawallet/connect';
 import { DeflyWalletConnect } from '@blockshake/defly-connect';
-import { API_BASE } from '../config/api';
+import { API_BASE, apiFetch } from '../config/api';
 
 export type NetworkType = 'mainnet' | 'testnet';
 export type WalletType = 'pera' | 'defly' | null;
@@ -212,7 +212,7 @@ export const AlgorandProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     try {
       // 1. Request nonce from backend
-      const nonceRes = await fetch(`${API_BASE}/auth/nonce`, {
+      const nonceRes = await apiFetch(`${API_BASE}/auth/nonce`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ address }),
@@ -243,7 +243,7 @@ export const AlgorandProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       const signatureB64 = btoa(String.fromCharCode(...signatureBytes));
 
       // 3. Submit to backend for verification
-      const verifyRes = await fetch(`${API_BASE}/auth/verify`, {
+      const verifyRes = await apiFetch(`${API_BASE}/auth/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ address, signature: signatureB64, nonce }),
@@ -279,7 +279,7 @@ export const AlgorandProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     if (!refreshToken) return false;
 
     try {
-      const res = await fetch(`${API_BASE}/auth/refresh`, {
+      const res = await apiFetch(`${API_BASE}/auth/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refreshToken }),
@@ -325,7 +325,7 @@ export const AlgorandProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const logoutFn = useCallback(async () => {
     try {
       if (accessToken) {
-        await fetch(`${API_BASE}/auth/logout`, {
+        await apiFetch(`${API_BASE}/auth/logout`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

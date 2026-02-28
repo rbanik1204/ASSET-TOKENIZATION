@@ -23,6 +23,23 @@ export const API_BASE: string =
   DEFAULT_API_BASE;
 
 /**
+ * Thin wrapper around `fetch()` that adds the `ngrok-skip-browser-warning`
+ * header.  Ngrok's free tier returns an HTML interstitial page for
+ * browser-originated requests unless this header is present, which
+ * breaks all API calls made from domains other than the ngrok URL itself.
+ */
+export function apiFetch(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<Response> {
+  const headers = new Headers(init?.headers);
+  if (!headers.has('ngrok-skip-browser-warning')) {
+    headers.set('ngrok-skip-browser-warning', 'true');
+  }
+  return fetch(input, { ...init, headers });
+}
+
+/**
  * Derive the best API_BASE to embed in QR codes / cross-device URLs.
  * If the current page is served from localhost, try to compute the
  * LAN-reachable URL.  Otherwise return the configured API_BASE.

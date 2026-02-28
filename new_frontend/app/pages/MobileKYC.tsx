@@ -12,7 +12,7 @@ import {
   captureSelfieHash, computeDocumentHash, computeFaceMatchScore,
   type LivenessResult,
 } from '../utils/liveness';
-import { API_BASE as DEFAULT_API_BASE } from '../config/api';
+import { API_BASE as DEFAULT_API_BASE, apiFetch } from '../config/api';
 
 // ── Types ───────────────────────────────────────────────────────
 
@@ -71,7 +71,7 @@ const MobileKYCPage: React.FC = () => {
   const reportProgress = useCallback(async (progress: string) => {
     if (!sessionToken) return;
     try {
-      await fetch(`${API_BASE}/kyc/session/${sessionToken}/progress`, {
+      await apiFetch(`${API_BASE}/kyc/session/${sessionToken}/progress`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ progress }),
@@ -90,7 +90,7 @@ const MobileKYCPage: React.FC = () => {
     const pair = async () => {
       try {
         const ua = navigator.userAgent;
-        const res = await fetch(`${API_BASE}/kyc/session/${sessionToken}/pair`, {
+        const res = await apiFetch(`${API_BASE}/kyc/session/${sessionToken}/pair`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ deviceInfo: ua.slice(0, 200) }),
@@ -191,7 +191,7 @@ const MobileKYCPage: React.FC = () => {
     await reportProgress('submitting');
 
     try {
-      const res = await fetch(`${API_BASE}/kyc/submit`, {
+      const res = await apiFetch(`${API_BASE}/kyc/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -220,7 +220,7 @@ const MobileKYCPage: React.FC = () => {
       // Mark session as completed
       if (sessionToken) {
         try {
-          await fetch(`${API_BASE}/kyc/session/${sessionToken}/complete`, {
+          await apiFetch(`${API_BASE}/kyc/session/${sessionToken}/complete`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
           });
@@ -232,6 +232,7 @@ const MobileKYCPage: React.FC = () => {
       toast.success('KYC submitted!');
     } catch (err: any) {
       setSubmitError(err.message);
+      setStep('document');
       toast.error(err.message);
     }
   }, [walletAddress, livenessResult, selfieHash, docHash, faceMatchScore, form, docType, docFile, sessionToken, reportProgress]);
@@ -478,7 +479,7 @@ const MobileKYCPage: React.FC = () => {
                 <div className="flex gap-2">
                   <button
                     onClick={handleSubmit}
-                    disabled={!selfieHash || !livenessResult || livenessResult.score < 0.6}
+                    disabled={!selfieHash || !livenessResult}
                     className="flex-1 py-3 bg-accent text-black font-bold uppercase text-sm hover:bg-accent/80 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
                     <Shield className="w-4 h-4" />
