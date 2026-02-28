@@ -777,6 +777,9 @@ export default function AdminPage() {
         try {
           // Fetch full metadata from IPFS
           console.log('📥 Fetching metadata from IPFS...');
+          if (!submission.metadataURI) {
+            throw new Error('Metadata URI is missing');
+          }
           const metadata = await fetchFromIPFS(submission.metadataURI);
           
           // Call deployment API

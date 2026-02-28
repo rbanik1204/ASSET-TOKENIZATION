@@ -87,11 +87,38 @@ interface DeploymentResult {
     ammPoolDeployed: boolean;
     ammPoolAddress?: Address;
     liquidityInitialized: boolean;
+    liquidityDemo?: {
+      tokenReserve: string;
+      ethReserve: string;
+      lpTokensMinted: string;
+      initialPrice: string;
+      poolShare: string;
+    };
     oracleVerified: boolean;
+    oracleDemo?: {
+      priceFeed: {
+        address: string;
+        lastUpdate: string;
+        price: string;
+        decimals: number;
+        staleness: string;
+        source: string;
+      };
+      reserveFeed: {
+        address: string;
+        lastUpdate: string;
+        reserves: string;
+        deviation: string;
+        status: string;
+      };
+    };
     indexed: boolean;
     marketplaceVisible: boolean;
   };
   error?: string;
+  demoMode?: boolean;
+  demoNotice?: string;
+  metadata?: any;
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
