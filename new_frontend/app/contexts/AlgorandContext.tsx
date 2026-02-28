@@ -2,12 +2,10 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import algosdk from 'algosdk';
 import { PeraWalletConnect } from '@perawallet/connect';
 import { DeflyWalletConnect } from '@blockshake/defly-connect';
+import { API_BASE } from '../config/api';
 
 export type NetworkType = 'mainnet' | 'testnet';
 export type WalletType = 'pera' | 'defly' | null;
-
-// ── Backend API base URL ─────────────────────────────────────────
-const API_BASE = 'http://localhost:3001/api/v1';
 
 // ── Auth token shape from backend ────────────────────────────────
 interface AuthTokens {

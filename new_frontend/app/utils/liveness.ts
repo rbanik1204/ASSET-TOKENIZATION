@@ -366,18 +366,38 @@ export async function startCamera(
   video: HTMLVideoElement,
   facingMode: 'user' | 'environment' = 'user',
 ): Promise<MediaStream> {
-  const stream = await navigator.mediaDevices.getUserMedia({
-    video: {
-      facingMode,
-      width: { ideal: 640 },
-      height: { ideal: 480 },
-      frameRate: { ideal: 15 },
-    },
-    audio: false,
-  });
+  let stream: MediaStream;
+
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode,
+        width: { ideal: 640 },
+        height: { ideal: 480 },
+        frameRate: { ideal: 15 },
+      },
+      audio: false,
+    });
+  } catch (firstErr) {
+    // Fallback: some mobile browsers reject facingMode or resolution constraints
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode },
+        audio: false,
+      });
+    } catch {
+      // Last resort: any camera
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: false,
+      });
+    }
+  }
 
   video.srcObject = stream;
   video.setAttribute('playsinline', 'true'); // iOS
+  video.setAttribute('muted', 'true');
+  video.muted = true;
   await video.play();
 
   return stream;

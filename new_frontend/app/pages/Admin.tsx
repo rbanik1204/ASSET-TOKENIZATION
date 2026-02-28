@@ -3,6 +3,7 @@ import { Settings, Users, Package, CheckCircle, XCircle, Clock, RefreshCw, Exter
 import { useAlgorand } from '../contexts/AlgorandContext';
 import { useAssetRegistry } from '../contexts/AssetRegistryContext';
 import { AsaBadge } from '../components/AsaBadge';
+import { API_BASE } from '../config/api';
 import { toast } from 'sonner';
 
 type Tab = 'overview' | 'assets' | 'kyc' | 'compliance';
@@ -29,7 +30,7 @@ const AdminPage: React.FC = () => {
   useEffect(() => {
     if (tab === 'kyc') {
       setLoading(true);
-      fetch('http://localhost:3001/api/v1/kyc/pending')
+      fetch(`${API_BASE}/kyc/pending`)
         .then(r => r.json())
         .then(d => {
           const data = d.data ?? d;
@@ -63,7 +64,7 @@ const AdminPage: React.FC = () => {
   const handleKycDecision = async (walletAddress: string, approve: boolean) => {
     const reason = approve ? '' : (prompt('Rejection reason:') || '');
     try {
-      const res = await fetch('http://localhost:3001/api/v1/kyc/review', {
+      const res = await fetch(`${API_BASE}/kyc/review`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ walletAddress, approve, reason, reviewerAddress: address }),

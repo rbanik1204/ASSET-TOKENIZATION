@@ -12,8 +12,7 @@ import {
   captureSelfieHash, computeDocumentHash, computeFaceMatchScore,
   type LivenessResult,
 } from '../utils/liveness';
-
-const API_BASE = 'http://localhost:3001/api/v1';
+import { API_BASE as DEFAULT_API_BASE } from '../config/api';
 
 // ── Types ───────────────────────────────────────────────────────
 
@@ -28,6 +27,7 @@ const MobileKYCPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const sessionToken = searchParams.get('session') || '';
   const walletAddress = searchParams.get('wallet') || '';
+  const API_BASE = searchParams.get('api') || DEFAULT_API_BASE;
 
   const [step, setStep] = useState<Step>('pairing');
   const [paired, setPaired] = useState(false);

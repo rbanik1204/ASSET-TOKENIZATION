@@ -5,8 +5,8 @@ import {
   Camera, Eye, FileText, Shield, RefreshCw, QrCode, X,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { API_BASE, getApiBaseForQR } from '../config/api';
 
-const API_BASE = 'http://localhost:3001/api/v1';
 const APP_BASE = typeof window !== 'undefined' ? window.location.origin : '';
 const POLL_INTERVAL = 2000;  // 2 seconds
 
@@ -121,7 +121,7 @@ const QrKycPairing: React.FC<QrKycPairingProps> = ({ walletAddress, onCompleted,
 
   // ── QR URL ──────────────────────────────────────────────────
   const qrUrl = session
-    ? `${APP_BASE}/kyc/mobile?session=${session.sessionToken}&wallet=${walletAddress}`
+    ? `${APP_BASE}/kyc/mobile?session=${session.sessionToken}&wallet=${walletAddress}&api=${encodeURIComponent(getApiBaseForQR())}`
     : '';
 
   // ── Timer format ────────────────────────────────────────────

@@ -1,9 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import algosdk from 'algosdk';
 import { useAlgorand } from './AlgorandContext';
-
-// ── Backend API base ──────────────────────────────────────────
-const API_BASE = 'http://localhost:3001/api/v1';
+import { API_BASE } from '../config/api';
 
 // ── Types ─────────────────────────────────────────────────────
 
