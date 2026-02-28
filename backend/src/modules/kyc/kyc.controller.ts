@@ -105,4 +105,57 @@ export class KycController {
   ) {
     return this.kyc.recordOnchainVerification(address, txId);
   }
+
+  // ═══════════════════════════════════════════════════════════════
+  // Cross-device QR session endpoints
+  // ═══════════════════════════════════════════════════════════════
+
+  @Public()
+  @Post('session/create')
+  @ApiOperation({
+    summary: 'Create a QR-based KYC session for cross-device handoff',
+    description:
+      'Desktop generates a session token. A QR code is rendered with a URL ' +
+      'containing the token. Mobile scans and completes biometric KYC.',
+  })
+  @ApiResponse({ status: 201, description: 'Session created' })
+  async createSession(@Body('walletAddress') walletAddress: string) {
+    return this.kyc.createSession(walletAddress);
+  }
+
+  @Public()
+  @Get('session/:token')
+  @ApiOperation({ summary: 'Poll session status (desktop polling)' })
+  @ApiResponse({ status: 200, description: 'Session status returned' })
+  async getSession(@Param('token') token: string) {
+    return this.kyc.getSession(token);
+  }
+
+  @Public()
+  @Post('session/:token/pair')
+  @ApiOperation({ summary: 'Pair a mobile device to a KYC session' })
+  @ApiResponse({ status: 201, description: 'Device paired' })
+  async pairSession(
+    @Param('token') token: string,
+    @Body('deviceInfo') deviceInfo?: string,
+  ) {
+    return this.kyc.pairSession(token, deviceInfo);
+  }
+
+  @Public()
+  @Post('session/:token/progress')
+  @ApiOperation({ summary: 'Update mobile KYC progress for desktop polling' })
+  async updateProgress(
+    @Param('token') token: string,
+    @Body('progress') progress: string,
+  ) {
+    return this.kyc.updateSessionProgress(token, progress);
+  }
+
+  @Public()
+  @Post('session/:token/complete')
+  @ApiOperation({ summary: 'Mark session as completed after mobile KYC submission' })
+  async completeSession(@Param('token') token: string) {
+    return this.kyc.completeSession(token);
+  }
 }

@@ -11,6 +11,7 @@ import { Portfolio } from './pages/Portfolio';
 import { Income } from './pages/Income';
 import { History } from './pages/History';
 import KYCPage from './pages/KYC';
+import MobileKYCPage from './pages/MobileKYC';
 import NotificationsPage from './pages/Notifications';
 import AdminPage from './pages/Admin';
 import FAQPage from './pages/FAQ';
@@ -34,6 +35,7 @@ export const router = createBrowserRouter([
       { path: 'income', Component: Income },
       { path: 'history', Component: History },
       { path: 'kyc', Component: KYCPage },
+      { path: 'kyc/mobile', Component: MobileKYCPage },
       { path: 'notifications', Component: NotificationsPage },
       { path: 'admin', Component: AdminPage },
       { path: 'faq', Component: FAQPage },

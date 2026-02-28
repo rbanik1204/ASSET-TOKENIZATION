@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { createHash } from 'crypto';
 
 import { KycSubmission, KycStatus } from './entities/kyc-submission.entity';
+import { KycSession, KycSessionStatus } from './entities/kyc-session.entity';
 import { SubmitKycDto, ReviewKycDto, RevokeKycDto } from './dto/kyc.dto';
 import { StorageService } from '../storage/storage.service';
 import { AlgorandService } from '../wallet/services/algorand.service';
@@ -26,6 +27,8 @@ export class KycService {
   constructor(
     @InjectRepository(KycSubmission)
     private readonly kycRepo: Repository<KycSubmission>,
+    @InjectRepository(KycSession)
+    private readonly sessionRepo: Repository<KycSession>,
     private readonly storage: StorageService,
     private readonly algorand: AlgorandService,
     private readonly config: ConfigService,
@@ -360,6 +363,135 @@ export class KycService {
     await this.kycRepo.save(record);
 
     return { success: true, walletAddress, txId, onchainVerified: true };
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // 9.  CROSS-DEVICE QR SESSION — create / poll / pair / complete
+  // ═══════════════════════════════════════════════════════════════
+
+  /** Desktop calls this to create a QR session */
+  async createSession(walletAddress: string) {
+    // Expire old waiting sessions for this wallet
+    await this.sessionRepo.update(
+      { walletAddress, status: KycSessionStatus.WAITING },
+      { status: KycSessionStatus.EXPIRED },
+    );
+
+    const token = createHash('sha256')
+      .update(`${walletAddress}-${Date.now()}-${Math.random()}`)
+      .digest('hex');
+
+    const session = this.sessionRepo.create({
+      sessionToken: token,
+      walletAddress,
+      status: KycSessionStatus.WAITING,
+      expiresAt: new Date(Date.now() + 15 * 60 * 1000), // 15 minutes
+    });
+
+    const saved = await this.sessionRepo.save(session);
+
+    this.logger.log(`KYC session created for ${walletAddress}: ${token.slice(0, 12)}...`);
+
+    return {
+      sessionToken: saved.sessionToken,
+      walletAddress: saved.walletAddress,
+      status: saved.status,
+      expiresAt: saved.expiresAt.toISOString(),
+    };
+  }
+
+  /** Desktop polls this to check session status */
+  async getSession(token: string) {
+    const session = await this.sessionRepo.findOne({
+      where: { sessionToken: token },
+    });
+
+    if (!session) throw new NotFoundException('Session not found');
+
+    // Auto-expire
+    if (session.expiresAt < new Date() && session.status !== KycSessionStatus.COMPLETED) {
+      session.status = KycSessionStatus.EXPIRED;
+      await this.sessionRepo.save(session);
+    }
+
+    // If completed, include KYC status
+    let kycStatus: any = null;
+    if (session.status === KycSessionStatus.COMPLETED) {
+      kycStatus = await this.getStatus(session.walletAddress);
+    }
+
+    return {
+      sessionToken: session.sessionToken,
+      walletAddress: session.walletAddress,
+      status: session.status,
+      mobileProgress: session.mobileProgress,
+      pairedAt: session.pairedAt?.toISOString() ?? null,
+      completedAt: session.completedAt?.toISOString() ?? null,
+      expiresAt: session.expiresAt.toISOString(),
+      kycStatus,
+    };
+  }
+
+  /** Mobile calls this when it opens the QR link */
+  async pairSession(token: string, deviceInfo?: string) {
+    const session = await this.sessionRepo.findOne({
+      where: { sessionToken: token },
+    });
+
+    if (!session) throw new NotFoundException('Session not found');
+    if (session.expiresAt < new Date()) {
+      throw new BadRequestException('Session has expired — please generate a new QR code');
+    }
+    if (session.status === KycSessionStatus.COMPLETED) {
+      throw new BadRequestException('Session already completed');
+    }
+
+    session.status = KycSessionStatus.PAIRED;
+    session.pairedAt = new Date();
+    session.deviceInfo = deviceInfo || null;
+    await this.sessionRepo.save(session);
+
+    this.logger.log(`KYC session paired: ${token.slice(0, 12)}... device: ${deviceInfo || 'unknown'}`);
+
+    return {
+      sessionToken: session.sessionToken,
+      walletAddress: session.walletAddress,
+      status: KycSessionStatus.PAIRED,
+    };
+  }
+
+  /** Mobile updates progress during biometric capture */
+  async updateSessionProgress(token: string, progress: string) {
+    const session = await this.sessionRepo.findOne({
+      where: { sessionToken: token },
+    });
+    if (!session) throw new NotFoundException('Session not found');
+
+    session.status = KycSessionStatus.IN_PROGRESS;
+    session.mobileProgress = progress;
+    await this.sessionRepo.save(session);
+
+    return { status: session.status, progress };
+  }
+
+  /** Mobile calls this after KYC is submitted */
+  async completeSession(token: string) {
+    const session = await this.sessionRepo.findOne({
+      where: { sessionToken: token },
+    });
+    if (!session) throw new NotFoundException('Session not found');
+
+    session.status = KycSessionStatus.COMPLETED;
+    session.completedAt = new Date();
+    await this.sessionRepo.save(session);
+
+    this.logger.log(`KYC session completed: ${token.slice(0, 12)}...`);
+
+    return {
+      sessionToken: session.sessionToken,
+      walletAddress: session.walletAddress,
+      status: KycSessionStatus.COMPLETED,
+    };
   }
 
   // ═══════════════════════════════════════════════════════════════

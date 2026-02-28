@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Shield, Camera, CheckCircle, AlertCircle, User, FileText,
   RefreshCw, Eye, Move, Upload, Loader2, XCircle, Fingerprint,
-  Globe, Lock,
+  Globe, Lock, Smartphone, QrCode,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAlgorand } from '../contexts/AlgorandContext';
@@ -13,10 +13,11 @@ import {
   captureSelfieHash, computeDocumentHash, computeFaceMatchScore,
   type LivenessResult,
 } from '../utils/liveness';
+import QrKycPairing from '../components/QrKycPairing';
 
 // ── Types ───────────────────────────────────────────────────────
 
-type Step = 'status' | 'camera' | 'liveness' | 'document' | 'submitting' | 'result';
+type Step = 'status' | 'qr_pairing' | 'camera' | 'liveness' | 'document' | 'submitting' | 'result';
 
 type DocType = 'passport' | 'drivers_license' | 'national_id';
 
@@ -191,6 +192,7 @@ const KYCPage: React.FC = () => {
   // ── Active step for stepper ────────────────────────────────
   const activeStep =
     step === 'status' ? 1 :
+    step === 'qr_pairing' ? 2 :
     step === 'camera' ? 2 :
     step === 'liveness' ? 3 :
     step === 'document' ? 4 :
@@ -363,17 +365,52 @@ const KYCPage: React.FC = () => {
                       Connect your wallet to begin verification
                     </div>
                   ) : (
-                    <button
-                      onClick={startLivenessFlow}
-                      className="w-full py-4 bg-accent text-black font-bold uppercase text-lg hover:bg-accent/80 transition-colors flex items-center justify-center gap-3"
-                    >
-                      <Camera className="w-6 h-6" />
-                      START VERIFICATION
-                    </button>
+                    <div className="space-y-3">
+                      <button
+                        onClick={startLivenessFlow}
+                        className="w-full py-4 bg-accent text-black font-bold uppercase text-lg hover:bg-accent/80 transition-colors flex items-center justify-center gap-3"
+                      >
+                        <Camera className="w-6 h-6" />
+                        START VERIFICATION
+                      </button>
+
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1 h-px bg-foreground/20" />
+                        <span className="text-xs text-muted-foreground font-bold uppercase">OR</span>
+                        <div className="flex-1 h-px bg-foreground/20" />
+                      </div>
+
+                      <button
+                        onClick={() => setStep('qr_pairing')}
+                        className="w-full py-3 border-2 border-accent text-accent font-bold uppercase text-sm hover:bg-accent/10 transition-colors flex items-center justify-center gap-3"
+                      >
+                        <QrCode className="w-5 h-5" />
+                        SCAN QR FROM MOBILE
+                        <Smartphone className="w-4 h-4 opacity-50" />
+                      </button>
+                      <p className="text-[10px] text-muted-foreground text-center">
+                        Use your mobile phone's camera & biometric sensors for better accuracy
+                      </p>
+                    </div>
                   )}
                 </>
               )}
             </div>
+          )}
+
+          {/* ═══════════════════════════════════════════════════════ */}
+          {/* STEP: QR PAIRING — cross-device mobile handoff         */}
+          {/* ═══════════════════════════════════════════════════════ */}
+          {step === 'qr_pairing' && address && (
+            <QrKycPairing
+              walletAddress={address}
+              onCompleted={() => {
+                refreshStatus();
+                setStep('status');
+                toast.success('KYC completed from mobile device!');
+              }}
+              onCancel={() => setStep('status')}
+            />
           )}
 
           {/* ═══════════════════════════════════════════════════════ */}
