@@ -49,7 +49,7 @@ interface PendingAsset {
   createdAt: string;
 }
 
-const ADMIN_WALLET = 'CZBNQWHGVNNRRMSDTJPZVFGQY6QDEVGVTAX77H745WJAKQCZAHPJJ7HE6A';
+const ADMIN_WALLET = '6MK4VVHQRPKL2BQVKYJORHBHKEKSYT5WCECN6FNG6KDOHUS2ZF4XZMP534';
 
 const AdminPage: React.FC = () => {
   const { address, network } = useAlgorand();
