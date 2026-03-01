@@ -365,6 +365,36 @@ export class MarketplaceService {
       this.logger.warn(`Could not look up ASA #${listing.asaId} info: ${err.message}`);
     }
 
+    // ── Check if buyer has opted in to the ASA ──────────────────
+    let buyerNeedsOptIn = true;
+    try {
+      const buyerAcct = await this.algorand.getAccountInfo(dto.buyerAddress);
+      const buyerAssets = buyerAcct?.assets || buyerAcct?.['created-assets'] || [];
+      buyerNeedsOptIn = !buyerAssets.some(
+        (a: any) => Number(a['asset-id']) === Number(listing.asaId),
+      );
+    } catch {
+      // Account might not exist yet — assume needs opt-in
+      buyerNeedsOptIn = true;
+    }
+
+    // Txn N: Buyer opts in to ASA (if not already opted in)
+    if (buyerNeedsOptIn) {
+      const optInIndex = txns.length;
+      txns.push(
+        algosdk.makeAssetTransferTxnWithSuggestedParamsFromObject({
+          sender: dto.buyerAddress,
+          receiver: dto.buyerAddress,
+          amount: BigInt(0),
+          assetIndex: Number(listing.asaId),
+          suggestedParams: params,
+          note: new TextEncoder().encode(`Opt-in to ASA #${listing.asaId}`),
+        }),
+      );
+      buyerSignIndices.push(optInIndex);
+      this.logger.log(`Buyer ${dto.buyerAddress} needs opt-in to ASA #${listing.asaId} — added txn at index ${optInIndex}`);
+    }
+
     if (adminAddress && asaClawbackAddr === adminAddress) {
       // Admin IS the clawback — use clawback transfer (server-signed)
       txns.push(
@@ -396,10 +426,12 @@ export class MarketplaceService {
       return Buffer.from(encoded).toString('base64');
     });
 
+    this.logger.log(`prepareBuy: ${txns.length} txns, buyerSignIndices=${JSON.stringify(buyerSignIndices)}`);
+
     // Return ALL txns to client (Pera requires full group)
     // buyerSignIndices tells client which ones the buyer signs
 
-    // Create trade record (store ALL unsigned txns for server-side signing later)
+    // Create trade record (store ALL unsigned txns + buyerSignIndices for confirmBuy)
     const trade = this.tradeRepo.create({
       listingId: listing.id,
       asaId: listing.asaId,
@@ -411,6 +443,7 @@ export class MarketplaceService {
       platformFee: platformFeeMicro,
       sellerProceeds: sellerProceedsMicro,
       unsignedTxns: JSON.stringify(allUnsignedTxns),
+      buyerSignIndicesJson: JSON.stringify(buyerSignIndices),
       status: TradeStatus.PENDING,
       network,
     });
@@ -450,38 +483,48 @@ export class MarketplaceService {
     const listing = await this.findOne(trade.listingId);
 
     try {
-      // Restore ALL unsigned txns from the trade record
+      // Restore ALL unsigned txns and buyer sign indices from the trade record
       if (!trade.unsignedTxns) {
         throw new BadRequestException('Trade has no unsigned transactions stored');
       }
       const allUnsignedB64: string[] = JSON.parse(trade.unsignedTxns);
+      const storedBuyerIndices: number[] = trade.buyerSignIndicesJson
+        ? JSON.parse(trade.buyerSignIndicesJson)
+        : [];
       const adminMnemonic = this.config.get<string>('algorand.admin.mnemonic') || '';
+      const buyerIndicesSet = new Set(storedBuyerIndices);
 
-      // Determine how many buyer txns vs server txns
-      // Buyer signs txns 0..N-1, server signs last txn (ASA transfer)
-      const buyerSignedCount = dto.signedTxns.length;
-      const serverSignCount = allUnsignedB64.length - buyerSignedCount;
+      this.logger.log(
+        `confirmBuy: ${allUnsignedB64.length} total txns, buyerIndices=${JSON.stringify(storedBuyerIndices)}, ` +
+        `received ${dto.signedTxns.length} buyer-signed txns`,
+      );
 
+      // Build the fully-signed transaction array in order
       const signedTxnParts: Uint8Array[] = [];
+      let buyerSignedIdx = 0;
 
-      // 1) Add buyer-signed txns
-      for (const b64 of dto.signedTxns) {
-        signedTxnParts.push(Uint8Array.from(Buffer.from(b64, 'base64')));
-      }
+      const adminAccount = adminMnemonic ? algosdk.mnemonicToSecretKey(adminMnemonic) : null;
 
-      // 2) Server-sign remaining txns (ASA transfer by admin)
-      if (serverSignCount > 0 && adminMnemonic) {
-        const adminAccount = algosdk.mnemonicToSecretKey(adminMnemonic);
-        for (let i = buyerSignedCount; i < allUnsignedB64.length; i++) {
+      for (let i = 0; i < allUnsignedB64.length; i++) {
+        if (buyerIndicesSet.has(i)) {
+          // Buyer-signed txn
+          if (buyerSignedIdx >= dto.signedTxns.length) {
+            throw new BadRequestException(`Missing buyer-signed txn at index ${i}`);
+          }
+          signedTxnParts.push(Uint8Array.from(Buffer.from(dto.signedTxns[buyerSignedIdx], 'base64')));
+          buyerSignedIdx++;
+        } else {
+          // Server-signed txn
+          if (!adminAccount) {
+            throw new BadRequestException(
+              'Server cannot sign escrow transaction — admin mnemonic not configured',
+            );
+          }
           const txnBytes = Uint8Array.from(Buffer.from(allUnsignedB64[i], 'base64'));
           const txn = algosdk.decodeUnsignedTransaction(txnBytes);
           const signed = txn.signTxn(adminAccount.sk);
           signedTxnParts.push(signed);
         }
-      } else if (serverSignCount > 0) {
-        throw new BadRequestException(
-          'Server cannot sign escrow transaction — admin mnemonic not configured',
-        );
       }
 
       // Submit atomic group

@@ -72,6 +72,9 @@ export class MarketplaceTrade {
   @Column({ name: 'unsigned_txns', type: 'text', nullable: true })
   unsignedTxns: string | null;    // base64 encoded group
 
+  @Column({ name: 'buyer_sign_indices_json', type: 'text', nullable: true })
+  buyerSignIndicesJson: string | null;  // JSON array of buyer-signed txn indices
+
   /* ── Status ──────────────────────────────────────────── */
   @Column({
     type: 'enum',
