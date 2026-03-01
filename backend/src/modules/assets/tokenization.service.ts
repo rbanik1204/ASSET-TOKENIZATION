@@ -157,9 +157,9 @@ export class TokenizationService {
       metadata: arc3Metadata,
       metadataHash: Buffer.from(metadataHash).toString('hex'),
       suggestedParams: {
-        fee: suggestedParams.fee,
-        firstValid: suggestedParams.firstValid,
-        lastValid: suggestedParams.lastValid,
+        fee: Number(suggestedParams.fee),
+        firstValid: Number(suggestedParams.firstValid),
+        lastValid: Number(suggestedParams.lastValid),
         genesisID: suggestedParams.genesisID,
         genesisHash: suggestedParams.genesisHash,
       },

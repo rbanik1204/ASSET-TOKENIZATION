@@ -206,6 +206,7 @@ export const Tokenize: React.FC = () => {
     unitName: '',
     totalSupply: '',
     decimals: '0',
+    pricePerUnit: '',
     url: '',
     category: 'real-estate',
     description: '',
@@ -262,6 +263,7 @@ export const Tokenize: React.FC = () => {
         unitName: formData.unitName,
         totalSupply: parseInt(formData.totalSupply),
         decimals: parseInt(formData.decimals),
+        pricePerUnit: formData.pricePerUnit ? parseFloat(formData.pricePerUnit) : undefined,
         url: formData.url,
         category: formData.category,
         description: formData.description,
@@ -547,6 +549,8 @@ export const Tokenize: React.FC = () => {
       { label: 'Unit Name', value: formData.unitName },
       { label: 'Total Supply', value: parseInt(formData.totalSupply).toLocaleString() },
       { label: 'Decimals', value: formData.decimals },
+      { label: 'Price Per Token', value: formData.pricePerUnit ? `${parseFloat(formData.pricePerUnit)} ALGO` : '—' },
+      { label: 'Total Asset Value', value: formData.pricePerUnit && formData.totalSupply ? `${(parseFloat(formData.totalSupply) * parseFloat(formData.pricePerUnit)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ALGO` : '—' },
       { label: 'Category', value: formData.category.replace('-', ' ') },
       { label: 'Network', value: network },
     ];
@@ -930,6 +934,37 @@ export const Tokenize: React.FC = () => {
                     onBlur={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.boxShadow = 'none'; }}
                   />
                 </div>
+                <div>
+                  <label style={labelStyle}>Price Per Token (ALGO) *</label>
+                  <input
+                    type="number" name="pricePerUnit" value={formData.pricePerUnit}
+                    onChange={handleChange} required min="0" step="0.001"
+                    placeholder="e.g., 10"
+                    style={inputStyle}
+                    onFocus={(e) => { e.currentTarget.style.borderColor = 'rgba(0,224,138,0.4)'; e.currentTarget.style.boxShadow = '0 0 12px rgba(0,224,138,0.08)'; }}
+                    onBlur={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.boxShadow = 'none'; }}
+                  />
+                </div>
+                {formData.totalSupply && formData.pricePerUnit && (
+                  <div style={{ gridColumn: 'span 2' }}>
+                    <div style={{
+                      padding: '14px 18px',
+                      borderRadius: '10px',
+                      background: 'rgba(0,224,138,0.05)',
+                      border: '1px solid rgba(0,224,138,0.15)',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                    }}>
+                      <span style={{ fontSize: '12px', fontWeight: 600, color: 'rgba(240,246,243,0.5)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+                        Total Asset Value
+                      </span>
+                      <span style={{ fontSize: '18px', fontWeight: 800, color: '#00e08a' }}>
+                        {(parseFloat(formData.totalSupply) * parseFloat(formData.pricePerUnit)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ALGO
+                      </span>
+                    </div>
+                  </div>
+                )}
                 <div style={{ gridColumn: 'span 2' }}>
                   <label style={labelStyle}>Category *</label>
                   <select
