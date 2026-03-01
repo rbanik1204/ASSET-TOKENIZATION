@@ -14,9 +14,9 @@ import { StorageService } from '../storage/storage.service';
 import { AlgorandService } from '../wallet/services/algorand.service';
 
 // ── Thresholds ──────────────────────────────────────────────────
-const LIVENESS_MIN_SCORE      = 0.60;   // minimum liveness score to proceed
-const LIVENESS_MIN_CHALLENGES = 2;      // must pass at least 2 challenges
-const LIVENESS_MIN_FRAMES     = 5;      // at least 5 frames analysed
+const LIVENESS_MIN_SCORE      = 0.40;   // minimum liveness score to proceed (relaxed for mobile cameras)
+const LIVENESS_MIN_CHALLENGES = 1;      // must pass at least 1 challenge (relaxed for mobile)
+const LIVENESS_MIN_FRAMES     = 3;      // at least 3 frames analysed (relaxed for mobile)
 const FACE_MATCH_AUTO_PASS    = 0.80;   // auto-approve face match above this
 const FACE_MATCH_MIN          = 0.50;   // below this = auto-reject face match
 

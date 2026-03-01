@@ -44,13 +44,13 @@ export interface FaceBox {
 
 // ── Constants ───────────────────────────────────────────────────
 
-const MIN_FACE_RATIO         = 0.15;  // face must be ≥15% of frame
-const MAX_FACE_RATIO         = 0.85;  // face must be ≤85% of frame
-const ENTROPY_THRESHOLD      = 5.0;   // min pixel-entropy between frames
-const LIGHTING_MIN_VARIANCE  = 500;   // min pixel variance for lighting check
-const MOTION_DIFF_THRESHOLD  = 8.0;   // avg pixel diff for motion detection
-const BLINK_THRESHOLD        = 0.25;  // eye aspect ratio drop for blink
-const HEAD_SHIFT_THRESHOLD   = 0.08;  // face center shift ratio for head turn
+const MIN_FACE_RATIO         = 0.10;  // face must be ≥10% of frame (relaxed for mobile)
+const MAX_FACE_RATIO         = 0.90;  // face must be ≤90% of frame
+const ENTROPY_THRESHOLD      = 2.5;   // min pixel-entropy between frames (lowered for mobile)
+const LIGHTING_MIN_VARIANCE  = 150;   // min pixel variance for lighting check (lowered for mobile)
+const MOTION_DIFF_THRESHOLD  = 3.5;   // avg pixel diff for motion detection (lowered for mobile)
+const BLINK_THRESHOLD        = 0.15;  // eye aspect ratio drop for blink
+const HEAD_SHIFT_THRESHOLD   = 0.04;  // face center shift ratio for head turn (relaxed for mobile)
 
 // ── Challenge definitions ───────────────────────────────────────
 
@@ -97,11 +97,12 @@ function detectFaceRegion(imageData: ImageData): FaceBox | null {
       const r = data[i], g = data[i + 1], b = data[i + 2];
 
       // Skin-tone ranges (works across many skin tones)
+      // Widened skin-tone ranges for better detection across skin tones
+      // and mobile cameras with different white-balance / compression
       const isSkin =
-        r > 60 && g > 40 && b > 20 &&
-        r > g && r > b &&
-        Math.abs(r - g) > 15 &&
-        r - b > 15;
+        r > 45 && g > 30 && b > 15 &&
+        r > g && (r - b) > 5 &&
+        Math.abs(r - g) > 8;
 
       if (isSkin) {
         skinPixels++;
@@ -187,7 +188,7 @@ function estimateEyeOpenness(imageData: ImageData, face: FaceBox): number {
     for (let x = eyeLeft; x < eyeRight; x += 2) {
       const i = (y * width + x) * 4;
       const brightness = (data[i] + data[i + 1] + data[i + 2]) / 3;
-      if (brightness < 80) darkPixels++; // eyes/pupils are dark
+      if (brightness < 100) darkPixels++; // eyes/pupils are dark (threshold raised for mobile)
       totalPixels++;
     }
   }
@@ -251,7 +252,7 @@ export async function runLivenessDetection(
     onProgress(challenge.instruction, ci);
 
     const challengeStart = Date.now();
-    const CHALLENGE_TIMEOUT = 5000; // 5 seconds per challenge
+    const CHALLENGE_TIMEOUT = 8000; // 8 seconds per challenge (extended for mobile)
 
     while (Date.now() - challengeStart < CHALLENGE_TIMEOUT) {
       if (abortSignal?.aborted) break;
@@ -279,11 +280,11 @@ export async function runLivenessDetection(
           const eyeOpenness = estimateEyeOpenness(frame, face);
           if (baseEyeOpenness > 0) {
             const ratio = eyeOpenness / baseEyeOpenness;
-            if (ratio > 1.3 || ratio < 0.7) {
-              // Significant change detected (blink or blink recovery)
+            // Relaxed thresholds: any noticeable eye change counts
+            if (ratio > 1.15 || ratio < 0.6) {
               blinkDetected = true;
               challenge.passed = true;
-              challenge.confidence = Math.min(1, Math.abs(1 - ratio) * 3);
+              challenge.confidence = Math.min(1, Math.abs(1 - ratio) * 2.5);
             }
           } else {
             baseEyeOpenness = eyeOpenness;
@@ -330,16 +331,23 @@ export async function runLivenessDetection(
   const challengesPassed = challenges.filter(c => c.passed).map(c => c.type);
 
   // Overall liveness score — weighted combination
+  // Rebalanced weights: face-presence bonus ensures mobile users can reach
+  // the minimum threshold even if challenge detection is imperfect.
   const challengeScore = challengesPassed.length / challenges.length;
   const entropyOk = avgEntropy > ENTROPY_THRESHOLD ? 1 : avgEntropy / ENTROPY_THRESHOLD;
   const lightingOk = lightingVariance > LIGHTING_MIN_VARIANCE ? 1 : lightingVariance / LIGHTING_MIN_VARIANCE;
-  const motionScore = motionDetected ? 1 : 0.3;
+  const motionScore = motionDetected ? 1 : 0.4;
+
+  // Face-presence bonus: % of frames where a face was detected
+  const faceDetectedFrames = featureData.length;
+  const facePresenceRatio = frameCount > 0 ? Math.min(1, faceDetectedFrames / frameCount) : 0;
 
   const score = Math.min(1, (
-    challengeScore * 0.50 +
-    entropyOk * 0.20 +
-    lightingOk * 0.15 +
-    motionScore * 0.15
+    challengeScore * 0.35 +
+    entropyOk * 0.15 +
+    lightingOk * 0.10 +
+    motionScore * 0.15 +
+    facePresenceRatio * 0.25
   ));
 
   // ── Compute feature hash (SHA-256 of aggregated data) ─────
