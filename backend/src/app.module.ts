@@ -87,7 +87,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
       provide: APP_PIPE,
       useValue: new ValidationPipe({
         whitelist: true,
-        forbidNonWhitelisted: true,
+        forbidNonWhitelisted: false,
         transform: true,
         transformOptions: { enableImplicitConversion: true },
       }),
