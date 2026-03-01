@@ -30,7 +30,7 @@ async function bootstrap() {
   app.use(compression());
 
   // ── CORS ───────────────────────────────────────────────────
-  const corsOrigins = configService.get<string[]>('app.corsOrigins') || [];
+  const corsOrigins = configService.get<string[]>('app.corsOrigin') || [];
   app.enableCors({
     origin: corsOrigins.length > 0 ? corsOrigins : '*',
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
