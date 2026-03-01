@@ -155,7 +155,8 @@ const AdminPage: React.FC = () => {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
-  const getFileIcon = (type: string) => {
+  const getFileIcon = (type?: string) => {
+    if (!type) return '📎';
     if (type.includes('pdf')) return '📄';
     if (type.includes('image')) return '🖼️';
     if (type.includes('word') || type.includes('doc')) return '📝';
@@ -339,11 +340,11 @@ const AdminPage: React.FC = () => {
                         <div className="flex-1 min-w-0">
                           <div className="text-sm font-bold truncate">{doc.name}</div>
                           <div className="text-xs text-muted-foreground">
-                            {doc.type} — {formatFileSize(doc.size)}
+                            {doc.type || 'unknown'} — {formatFileSize(doc.size || 0)}
                           </div>
                         </div>
                         <div className="flex gap-2 flex-shrink-0">
-                          {doc.type.includes('image') && (
+                          {doc.type?.includes('image') && (
                             <button
                               onClick={() => setDocPreview({ url: doc.url, name: doc.name })}
                               className="flex items-center gap-1 px-2 py-1 text-xs border border-foreground/30 hover:bg-foreground/10 transition-colors rounded"
