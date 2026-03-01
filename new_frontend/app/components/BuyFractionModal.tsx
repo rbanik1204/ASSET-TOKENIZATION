@@ -92,22 +92,24 @@ export const BuyFractionModal: React.FC<BuyFractionModalProps> = ({
       // ── Step 2: Sign buyer txns with wallet ──
       setTxStatus('signing');
 
-      // Decode unsigned txns → algosdk Transaction objects
-      const txnObjs = result.unsignedTxns.map((b64) => {
+      const buyerIndices = new Set(result.buyerSignIndices ?? [0, 1]);
+
+      // Decode ALL unsigned txns → algosdk Transaction objects
+      const txnObjs = result.unsignedTxns.map((b64: string) => {
         const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
         return algosdk.decodeUnsignedTransaction(bytes);
       });
 
-      // Build signable txn groups for Pera/Defly wallet
-      // Each txn is wrapped in [[{ txn }]] format for single-group signing
-      const txnGroup = txnObjs.map((txn) => ({ txn }));
+      // Build signable txn group for Pera/Defly wallet
+      // Buyer signs their txns; server txns are marked signers: [] (display-only)
+      const txnGroup = txnObjs.map((txn: any, i: number) => ({
+        txn,
+        ...(buyerIndices.has(i) ? {} : { signers: [] }),
+      }));
 
-      let signedTxnBytes: Uint8Array[];
+      let signedTxnBytes: (Uint8Array | null)[];
 
       if (connectedWallet === 'pera') {
-        // @ts-ignore - Pera wallet signTransaction
-        const peraWallet = (window as any).__peraWallet;
-        // Try to get Pera ref — use dynamic import fallback
         const { PeraWalletConnect } = await import('@perawallet/connect');
         const pera = new PeraWalletConnect({ chainId: network === 'mainnet' ? 416001 : 416002 });
         try { await pera.reconnectSession(); } catch { await pera.connect(); }
@@ -121,13 +123,14 @@ export const BuyFractionModal: React.FC<BuyFractionModalProps> = ({
         throw new Error('Unsupported wallet type');
       }
 
-      // Convert signed txns to base64
-      const signedTxnsB64 = signedTxnBytes.map((bytes) => {
-        if (bytes instanceof Uint8Array) {
-          return btoa(String.fromCharCode(...bytes));
+      // Extract only the buyer-signed txns (wallet returns null for signers:[] txns)
+      const signedTxnsB64: string[] = [];
+      for (const bytes of signedTxnBytes) {
+        if (bytes && bytes.length > 0) {
+          const b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+          signedTxnsB64.push(btoa(String.fromCharCode(...b)));
         }
-        return btoa(String.fromCharCode(...new Uint8Array(bytes)));
-      });
+      }
 
       // ── Step 3: Confirm (backend signs server portion + submits) ──
       setTxStatus('confirming');

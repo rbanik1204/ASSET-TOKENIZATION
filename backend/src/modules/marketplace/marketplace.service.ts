@@ -314,8 +314,8 @@ export class MarketplaceService {
       return Buffer.from(encoded).toString('base64');
     });
 
-    // Only return buyer-signable txns to the client
-    const buyerUnsignedTxns = buyerSignIndices.map(i => allUnsignedTxns[i]);
+    // Return ALL txns to client (Pera requires full group)
+    // buyerSignIndices tells client which ones the buyer signs
 
     // Create trade record (store ALL unsigned txns for server-side signing later)
     const trade = this.tradeRepo.create({
@@ -336,7 +336,7 @@ export class MarketplaceService {
 
     return {
       tradeId: savedTrade.id,
-      unsignedTxns: buyerUnsignedTxns,
+      unsignedTxns: allUnsignedTxns,
       buyerSignIndices,
       summary: {
         units: dto.units,

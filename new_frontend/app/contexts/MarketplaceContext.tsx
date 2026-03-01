@@ -70,6 +70,7 @@ export interface BuySummary {
 export interface PrepareBuyResult {
   tradeId: string;
   unsignedTxns: string[];
+  buyerSignIndices: number[];
   summary: BuySummary;
 }
 
