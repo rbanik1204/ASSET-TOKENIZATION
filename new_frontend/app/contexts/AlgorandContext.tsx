@@ -37,6 +37,8 @@ interface AlgorandContextType {
   signAndVerify: () => Promise<boolean>;
   refreshSession: () => Promise<boolean>;
   logout: () => Promise<void>;
+  // Transaction signing (reuses connected wallet session)
+  signTransactions: (txnGroup: Array<{ txn: any; signers?: string[] }>) => Promise<(Uint8Array | null)[]>;
 }
 
 const AlgorandContext = createContext<AlgorandContextType | undefined>(undefined);
@@ -372,6 +374,19 @@ export const AlgorandProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     localStorage.setItem('al_network', net);
   }, []);
 
+  // ── Sign transactions using existing wallet session ────────────
+  const signTransactions = useCallback(
+    async (txnGroup: Array<{ txn: any; signers?: string[] }>): Promise<(Uint8Array | null)[]> => {
+      if (connectedWallet === 'pera' && peraWallet.current) {
+        return peraWallet.current.signTransaction([txnGroup]);
+      } else if (connectedWallet === 'defly' && deflyWallet.current) {
+        return deflyWallet.current.signTransaction([txnGroup]);
+      }
+      throw new Error('No wallet connected for signing');
+    },
+    [connectedWallet],
+  );
+
   const value: AlgorandContextType = {
     network,
     setNetwork,
@@ -390,6 +405,7 @@ export const AlgorandProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     signAndVerify,
     refreshSession,
     logout: logoutFn,
+    signTransactions,
   };
 
   return <AlgorandContext.Provider value={value}>{children}</AlgorandContext.Provider>;

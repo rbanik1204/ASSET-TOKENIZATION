@@ -31,7 +31,7 @@ export const BuyFractionModal: React.FC<BuyFractionModalProps> = ({
   onClose,
   onSuccess,
 }) => {
-  const { address, connectedWallet, network } = useAlgorand();
+  const { address, connectedWallet, network, signTransactions } = useAlgorand();
   const { prepareBuy, confirmBuy } = useMarketplace();
 
   const [units, setUnits] = useState(listing.minPurchase || 1);
@@ -109,19 +109,8 @@ export const BuyFractionModal: React.FC<BuyFractionModalProps> = ({
 
       let signedTxnBytes: (Uint8Array | null)[];
 
-      if (connectedWallet === 'pera') {
-        const { PeraWalletConnect } = await import('@perawallet/connect');
-        const pera = new PeraWalletConnect({ chainId: network === 'mainnet' ? 416001 : 416002 });
-        try { await pera.reconnectSession(); } catch { await pera.connect(); }
-        signedTxnBytes = await pera.signTransaction([txnGroup]);
-      } else if (connectedWallet === 'defly') {
-        const { DeflyWalletConnect } = await import('@blockshake/defly-connect');
-        const defly = new DeflyWalletConnect({ chainId: network === 'mainnet' ? 416001 : 416002 });
-        try { await defly.reconnectSession(); } catch { await defly.connect(); }
-        signedTxnBytes = await defly.signTransaction([txnGroup]);
-      } else {
-        throw new Error('Unsupported wallet type');
-      }
+      // Use the existing wallet session from AlgorandContext
+      signedTxnBytes = await signTransactions(txnGroup);
 
       // Extract only the buyer-signed txns (wallet returns null for signers:[] txns)
       const signedTxnsB64: string[] = [];
