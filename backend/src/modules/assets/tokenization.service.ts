@@ -4,6 +4,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { ConfigService } from '@nestjs/config';
 import algosdk from 'algosdk';
 import { createHash } from 'crypto';
 
@@ -43,6 +44,7 @@ export class TokenizationService {
     private readonly algorand: AlgorandService,
     private readonly storage: StorageService,
     private readonly kycService: KycService,
+    private readonly config: ConfigService,
   ) {}
 
   // ═══════════════════════════════════════════════════════════════
@@ -127,6 +129,9 @@ export class TokenizationService {
 
     const asaUrl = (dto.url || `ipfs://${ipfsResult.cid}#arc3`).slice(0, 96);
 
+    // Use admin address as clawback so the platform can facilitate marketplace trades
+    const adminAddress = this.config.get<string>('algorand.admin.address') || dto.creator;
+
     const txn = algosdk.makeAssetCreateTxnWithSuggestedParamsFromObject({
       sender: dto.creator,
       total: BigInt(dto.totalSupply),
@@ -135,7 +140,7 @@ export class TokenizationService {
       manager: dto.manager || dto.creator,
       reserve: dto.reserve || dto.creator,
       freeze: dto.freeze || dto.creator,
-      clawback: dto.clawback || dto.creator,
+      clawback: adminAddress,
       unitName: dto.unitName,
       assetName: dto.name.slice(0, 32), // Algorand max 32 chars
       assetURL: asaUrl,

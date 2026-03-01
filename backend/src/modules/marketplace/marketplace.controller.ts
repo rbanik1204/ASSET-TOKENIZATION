@@ -81,6 +81,22 @@ export class MarketplaceController {
     return this.marketplaceService.cancelListing(id, dto.sellerAddress);
   }
 
+  // ── ESCROW SETUP ──────────────────────────────────
+
+  @Public()
+  @Post(':id/escrow/prepare')
+  @ApiOperation({ summary: 'Prepare escrow setup (set ASA clawback to admin)' })
+  prepareEscrow(@Param('id') id: string, @Body() body: { sellerAddress: string }) {
+    return this.marketplaceService.prepareEscrowSetup(id, body.sellerAddress);
+  }
+
+  @Public()
+  @Post(':id/escrow/confirm')
+  @ApiOperation({ summary: 'Confirm escrow setup (submit signed ASA Config txn)' })
+  confirmEscrow(@Param('id') id: string, @Body() body: { signedTxn: string }) {
+    return this.marketplaceService.confirmEscrowSetup(id, body.signedTxn);
+  }
+
   // ── ATOMIC SWAP BUY FLOW ─────────────────────────
 
   @Public()

@@ -186,6 +186,82 @@ export class MarketplaceService {
   }
 
   // ═════════════════════════════════════════════════════════════
+  // ESCROW SETUP — Set ASA clawback to admin for marketplace trades
+  // ═════════════════════════════════════════════════════════════
+
+  /**
+   * Generates an unsigned ASA Config txn that sets the clawback address
+   * to the platform admin. The seller must sign this once per ASA.
+   */
+  async prepareEscrowSetup(listingId: string, sellerAddress: string): Promise<{
+    unsignedTxn: string;
+    asaId: number;
+    message: string;
+  }> {
+    const listing = await this.findOne(listingId);
+    if (listing.sellerAddress !== sellerAddress) {
+      throw new ForbiddenException('Only the seller can set up escrow');
+    }
+
+    const adminAddress = this.config.get<string>('algorand.admin.address');
+    if (!adminAddress) {
+      throw new BadRequestException('Admin address not configured');
+    }
+
+    // Check if clawback is already admin
+    try {
+      const asaInfo = await this.algorand.getAssetInfo(Number(listing.asaId));
+      const assetParams = asaInfo?.asset?.params || asaInfo?.params || asaInfo;
+      const currentClawback = assetParams?.clawback || assetParams?.['clawback-addr'];
+      if (currentClawback === adminAddress) {
+        return {
+          unsignedTxn: '',
+          asaId: Number(listing.asaId),
+          message: 'Escrow already configured — clawback is set to admin',
+        };
+      }
+    } catch { /* continue */ }
+
+    const params = await this.algorand.getSuggestedParams();
+
+    // ASA Config txn: change clawback to admin
+    const txn = algosdk.makeAssetConfigTxnWithSuggestedParamsFromObject({
+      sender: sellerAddress,
+      assetIndex: Number(listing.asaId),
+      suggestedParams: params,
+      // Must preserve existing manager/reserve/freeze or they get cleared
+      manager: sellerAddress,
+      reserve: sellerAddress,
+      freeze: sellerAddress,
+      clawback: adminAddress,
+      note: new TextEncoder().encode('AssetLinked: setup marketplace escrow'),
+      strictEmptyAddressChecking: false,
+    });
+
+    const unsignedTxnB64 = Buffer.from(algosdk.encodeUnsignedTransaction(txn)).toString('base64');
+
+    return {
+      unsignedTxn: unsignedTxnB64,
+      asaId: Number(listing.asaId),
+      message: `Sign this transaction to authorize the platform to facilitate trades for ASA #${listing.asaId}`,
+    };
+  }
+
+  /**
+   * Confirm escrow setup — submit the seller-signed ASA Config txn
+   */
+  async confirmEscrowSetup(listingId: string, signedTxn: string): Promise<{ success: boolean; txId: string }> {
+    const signedTxnBytes = Uint8Array.from(Buffer.from(signedTxn, 'base64'));
+    const algod = this.algorand.getAlgodClient();
+
+    const { txid } = await algod.sendRawTransaction(signedTxnBytes).do();
+    await algosdk.waitForConfirmation(algod, txid, 4);
+
+    this.logger.log(`Escrow setup confirmed for listing ${listingId}: ${txid}`);
+    return { success: true, txId: txid };
+  }
+
+  // ═════════════════════════════════════════════════════════════
   // TRADING  —  Atomic Swap via Algorand group transactions
   // ═════════════════════════════════════════════════════════════
 
@@ -277,9 +353,20 @@ export class MarketplaceService {
       buyerSignIndices.push(1);
     }
 
-    // Txn 2: Admin (escrow) → Buyer (ASA clawback transfer from seller)
-    // Uses admin as sender with assetSender (clawback) to pull ASA from seller
-    if (adminAddress) {
+    // Txn 2: ASA transfer from seller to buyer
+    // Look up on-chain ASA info to determine who has clawback authority
+    let asaClawbackAddr: string | null = null;
+    try {
+      const asaInfo = await this.algorand.getAssetInfo(Number(listing.asaId));
+      const assetParams = asaInfo?.asset?.params || asaInfo?.params || asaInfo;
+      asaClawbackAddr = assetParams?.clawback || assetParams?.['clawback-addr'] || null;
+      this.logger.log(`ASA #${listing.asaId} on-chain clawback: ${asaClawbackAddr}`);
+    } catch (err: any) {
+      this.logger.warn(`Could not look up ASA #${listing.asaId} info: ${err.message}`);
+    }
+
+    if (adminAddress && asaClawbackAddr === adminAddress) {
+      // Admin IS the clawback — use clawback transfer (server-signed)
       txns.push(
         algosdk.makeAssetTransferTxnWithSuggestedParamsFromObject({
           sender: adminAddress,
@@ -291,17 +378,12 @@ export class MarketplaceService {
           assetSender: listing.sellerAddress, // clawback from seller
         }),
       );
+      // Server signs this txn — don't add to buyerSignIndices
     } else {
-      // Fallback: if no admin, make seller the sender (requires seller to co-sign)
-      txns.push(
-        algosdk.makeAssetTransferTxnWithSuggestedParamsFromObject({
-          sender: listing.sellerAddress,
-          receiver: dto.buyerAddress,
-          amount: BigInt(dto.units),
-          assetIndex: Number(listing.asaId),
-          suggestedParams: params,
-          note: new TextEncoder().encode(`AssetLinked: transfer ${dto.units} ${listing.unitName}`),
-        }),
+      // Clawback is NOT the admin — escrow setup is required first
+      throw new BadRequestException(
+        'ESCROW_REQUIRED: The seller must enable marketplace trading for this asset before it can be purchased. ' +
+        'The seller should click "Enable Trading" on their listing.',
       );
     }
 

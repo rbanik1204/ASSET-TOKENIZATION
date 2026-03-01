@@ -103,6 +103,8 @@ interface MarketplaceContextType {
   cancelListing: (listingId: string, sellerAddress: string) => Promise<void>;
   prepareBuy: (listingId: string, buyerAddress: string, units: number) => Promise<PrepareBuyResult>;
   confirmBuy: (tradeId: string, signedTxns: string[]) => Promise<{ trade: Trade; listing: Listing; explorerUrl: string }>;
+  prepareEscrow: (listingId: string, sellerAddress: string) => Promise<{ unsignedTxn: string; asaId: number; message: string }>;
+  confirmEscrow: (listingId: string, signedTxn: string) => Promise<{ success: boolean; txId: string }>;
   getTradeHistory: (address: string) => Promise<Trade[]>;
 }
 
@@ -267,6 +269,42 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     [authHeaders, fetchListings, fetchRecentTrades],
   );
 
+  // ── PREPARE ESCROW (Step 1: Get unsigned ASA Config txn) ───
+  const prepareEscrow = useCallback(
+    async (listingId: string, sellerAddress: string): Promise<{ unsignedTxn: string; asaId: number; message: string }> => {
+      const res = await apiFetch(`${API_BASE}/marketplace/${listingId}/escrow/prepare`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ sellerAddress }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: 'Prepare escrow failed' }));
+        throw new Error(err.message || err.error || 'Failed to prepare escrow setup');
+      }
+      const json = await res.json();
+      return json.data ?? json;
+    },
+    [authHeaders],
+  );
+
+  // ── CONFIRM ESCROW (Step 2: Submit signed ASA Config txn) ──
+  const confirmEscrow = useCallback(
+    async (listingId: string, signedTxn: string): Promise<{ success: boolean; txId: string }> => {
+      const res = await apiFetch(`${API_BASE}/marketplace/${listingId}/escrow/confirm`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ signedTxn }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: 'Confirm escrow failed' }));
+        throw new Error(err.message || err.error || 'Failed to confirm escrow setup');
+      }
+      const json = await res.json();
+      return json.data ?? json;
+    },
+    [authHeaders],
+  );
+
   // ── TRADE HISTORY ────────────────────────────────────────────
   const getTradeHistory = useCallback(
     async (address: string): Promise<Trade[]> => {
@@ -307,6 +345,8 @@ export const MarketplaceProvider: React.FC<{ children: React.ReactNode }> = ({ c
         cancelListing,
         prepareBuy,
         confirmBuy,
+        prepareEscrow,
+        confirmEscrow,
         getTradeHistory,
       }}
     >

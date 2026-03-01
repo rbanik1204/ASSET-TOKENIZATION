@@ -5,7 +5,7 @@ import {
   Search, ShoppingCart, ExternalLink, Plus,
   Building2, Shield, Clock, TrendingUp, Zap,
   Layers, Leaf, BarChart3, Gem, Activity,
-  XCircle, RefreshCw,
+  XCircle, RefreshCw, Unlock,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { BuyFractionModal } from '../components/BuyFractionModal';
@@ -156,10 +156,11 @@ const TradeRow: React.FC<{ trade: Trade }> = ({ trade }) => (
 // MAIN MARKETPLACE COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════
 export const Marketplace: React.FC = () => {
-  const { address, network, isAuthenticated } = useAlgorand();
+  const { address, network, isAuthenticated, signTransactions } = useAlgorand();
   const {
     listings, stats, recentTrades, isLoading, error,
     fetchListings, fetchStats, fetchRecentTrades, cancelListing,
+    prepareEscrow, confirmEscrow,
   } = useMarketplace();
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -167,6 +168,7 @@ export const Marketplace: React.FC = () => {
   const [buyListing, setBuyListing] = useState<Listing | null>(null);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
+  const [enablingTradeId, setEnablingTradeId] = useState<string | null>(null);
 
   // Auto-refresh
   useEffect(() => {
@@ -205,6 +207,48 @@ export const Marketplace: React.FC = () => {
       toast.success('Listing cancelled');
     } catch (err: any) {
       toast.error(err.message || 'Failed to cancel');
+    }
+  };
+
+  const handleEnableTrading = async (listing: Listing) => {
+    if (!address) return;
+    setEnablingTradeId(listing.id);
+    try {
+      // Step 1: Get unsigned ASA Config txn from backend
+      const result = await prepareEscrow(listing.id, address);
+
+      // Already configured?
+      if (!result.unsignedTxn) {
+        toast.success(result.message || 'Trading already enabled!');
+        setEnablingTradeId(null);
+        return;
+      }
+
+      // Step 2: Decode and sign with wallet
+      const bytes = Uint8Array.from(atob(result.unsignedTxn), (c) => c.charCodeAt(0));
+      const txnObj = (await import('algosdk')).default.decodeUnsignedTransaction(bytes);
+      const txnGroup = [{ txn: txnObj }];
+      const signed = await signTransactions(txnGroup);
+
+      // Extract the signed txn
+      const signedBytes = signed.find((s: any) => s && s.length > 0);
+      if (!signedBytes) throw new Error('No signed transaction returned');
+
+      const b = signedBytes instanceof Uint8Array ? signedBytes : new Uint8Array(signedBytes);
+      const signedB64 = btoa(String.fromCharCode(...b));
+
+      // Step 3: Submit to backend
+      await confirmEscrow(listing.id, signedB64);
+      toast.success(`Trading enabled for ${listing.assetName}! Buyers can now purchase.`);
+    } catch (err: any) {
+      if (err?.message?.includes('CONNECT_MODAL_CLOSED') || err?.message?.includes('cancelled')) {
+        // User cancelled
+      } else {
+        console.error('Enable trading error:', err);
+        toast.error(err.message || 'Failed to enable trading');
+      }
+    } finally {
+      setEnablingTradeId(null);
     }
   };
 
@@ -681,21 +725,44 @@ export const Marketplace: React.FC = () => {
                           </span>
 
                           {isMine ? (
-                            <button
-                              onClick={() => handleCancelListing(listing)}
-                              style={{
-                                display: 'flex', alignItems: 'center', gap: '6px',
-                                padding: '8px 18px', borderRadius: '8px',
-                                border: '1px solid rgba(239,68,68,0.35)',
-                                background: 'rgba(239,68,68,0.08)',
-                                color: '#ef4444',
-                                fontSize: '11px', fontWeight: 700, cursor: 'pointer',
-                                transition: 'all 0.25s ease',
-                              }}
-                            >
-                              <XCircle style={{ width: '12px', height: '12px' }} />
-                              Cancel
-                            </button>
+                            <div style={{ display: 'flex', gap: '6px' }}>
+                              <button
+                                onClick={() => handleEnableTrading(listing)}
+                                disabled={enablingTradeId === listing.id}
+                                style={{
+                                  display: 'flex', alignItems: 'center', gap: '5px',
+                                  padding: '8px 14px', borderRadius: '8px',
+                                  border: '1px solid rgba(99,102,241,0.35)',
+                                  background: 'rgba(99,102,241,0.08)',
+                                  color: '#818cf8',
+                                  fontSize: '10px', fontWeight: 700, cursor: 'pointer',
+                                  transition: 'all 0.25s ease',
+                                  opacity: enablingTradeId === listing.id ? 0.5 : 1,
+                                }}
+                              >
+                                {enablingTradeId === listing.id ? (
+                                  <RefreshCw style={{ width: '11px', height: '11px', animation: 'spin 1s linear infinite' }} />
+                                ) : (
+                                  <Unlock style={{ width: '11px', height: '11px' }} />
+                                )}
+                                {enablingTradeId === listing.id ? 'Enabling...' : 'Enable Trading'}
+                              </button>
+                              <button
+                                onClick={() => handleCancelListing(listing)}
+                                style={{
+                                  display: 'flex', alignItems: 'center', gap: '5px',
+                                  padding: '8px 14px', borderRadius: '8px',
+                                  border: '1px solid rgba(239,68,68,0.35)',
+                                  background: 'rgba(239,68,68,0.08)',
+                                  color: '#ef4444',
+                                  fontSize: '10px', fontWeight: 700, cursor: 'pointer',
+                                  transition: 'all 0.25s ease',
+                                }}
+                              >
+                                <XCircle style={{ width: '11px', height: '11px' }} />
+                                Cancel
+                              </button>
+                            </div>
                           ) : (
                             <button
                               onClick={() => setBuyListing(listing)}
