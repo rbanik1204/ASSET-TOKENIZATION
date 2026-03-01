@@ -66,16 +66,16 @@ export class MarketplaceController {
 
   // ── CREATE / CANCEL ──────────────────────────────
 
+  @Public()
   @Post('create')
-  @ApiBearerAuth()
   @ApiOperation({ summary: 'Create a new marketplace listing' })
   @ApiResponse({ status: 201, description: 'Listing created' })
   createListing(@Body() dto: CreateListingDto) {
     return this.marketplaceService.createListing(dto);
   }
 
+  @Public()
   @Post(':id/cancel')
-  @ApiBearerAuth()
   @ApiOperation({ summary: 'Cancel a listing (seller only)' })
   cancelListing(@Param('id') id: string, @Body() dto: CancelListingDto) {
     return this.marketplaceService.cancelListing(id, dto.sellerAddress);
@@ -83,16 +83,16 @@ export class MarketplaceController {
 
   // ── ATOMIC SWAP BUY FLOW ─────────────────────────
 
+  @Public()
   @Post('buy/prepare')
-  @ApiBearerAuth()
   @ApiOperation({ summary: 'Step 1: Prepare atomic swap (returns unsigned txns)' })
   @ApiResponse({ status: 200, description: 'Unsigned transaction group returned' })
   prepareBuy(@Body() dto: PrepareBuyDto) {
     return this.marketplaceService.prepareBuy(dto);
   }
 
+  @Public()
   @Post('buy/confirm')
-  @ApiBearerAuth()
   @ApiOperation({ summary: 'Step 2: Submit signed transaction group to Algorand' })
   @ApiResponse({ status: 200, description: 'Trade confirmed on-chain' })
   confirmBuy(@Body() dto: ConfirmBuyDto) {
