@@ -62,34 +62,7 @@ const AdminPage: React.FC = () => {
 
   const isAdmin = address === ADMIN_WALLET;
 
-  // If not admin, show access denied
-  if (!address) {
-    return (
-      <div className="container mx-auto px-4 py-8 text-center">
-        <Settings className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-        <h1 className="text-3xl font-bold uppercase mb-2">ADMIN PANEL</h1>
-        <p className="text-muted-foreground">Please connect your wallet to access the admin panel.</p>
-      </div>
-    );
-  }
-
-  if (!isAdmin) {
-    return (
-      <div className="container mx-auto px-4 py-8 text-center">
-        <AlertCircle className="w-16 h-16 text-destructive mx-auto mb-4" />
-        <h1 className="text-3xl font-bold uppercase mb-2">ACCESS DENIED</h1>
-        <p className="text-muted-foreground mb-4">
-          Only the platform admin wallet can access this panel.
-        </p>
-        <div className="text-xs font-mono text-muted-foreground border border-destructive/30 inline-block px-4 py-2 rounded">
-          Your wallet: {address.slice(0, 12)}...{address.slice(-6)}
-        </div>
-        <p className="text-xs text-muted-foreground mt-2">
-          Required: {ADMIN_WALLET.slice(0, 12)}...{ADMIN_WALLET.slice(-6)}
-        </p>
-      </div>
-    );
-  }
+  // ── All hooks & callbacks MUST be declared before any conditional returns ──
 
   // Fetch pending assets with documents from dedicated endpoint
   const fetchPendingAssets = async () => {
@@ -106,6 +79,7 @@ const AdminPage: React.FC = () => {
   };
 
   useEffect(() => {
+    if (!isAdmin) return;          // skip fetches when not admin
     if (tab === 'kyc') {
       setLoading(true);
       apiFetch(`${API_BASE}/kyc/pending`)
@@ -120,7 +94,7 @@ const AdminPage: React.FC = () => {
     if (tab === 'assets') {
       fetchPendingAssets();
     }
-  }, [tab]);
+  }, [tab, isAdmin]);
 
   const handleAssetVerify = async (assetId: string, approve: boolean) => {
     const reason = approve ? '' : (prompt('Rejection reason:') || '');
@@ -187,6 +161,35 @@ const AdminPage: React.FC = () => {
     if (type.includes('word') || type.includes('doc')) return '📝';
     return '📎';
   };
+
+  // ── Conditional returns AFTER all hooks ──────────────────────────────────
+  if (!address) {
+    return (
+      <div className="container mx-auto px-4 py-8 text-center">
+        <Settings className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+        <h1 className="text-3xl font-bold uppercase mb-2">ADMIN PANEL</h1>
+        <p className="text-muted-foreground">Please connect your wallet to access the admin panel.</p>
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="container mx-auto px-4 py-8 text-center">
+        <AlertCircle className="w-16 h-16 text-destructive mx-auto mb-4" />
+        <h1 className="text-3xl font-bold uppercase mb-2">ACCESS DENIED</h1>
+        <p className="text-muted-foreground mb-4">
+          Only the platform admin wallet can access this panel.
+        </p>
+        <div className="text-xs font-mono text-muted-foreground border border-destructive/30 inline-block px-4 py-2 rounded">
+          Your wallet: {address.slice(0, 12)}...{address.slice(-6)}
+        </div>
+        <p className="text-xs text-muted-foreground mt-2">
+          Required: {ADMIN_WALLET.slice(0, 12)}...{ADMIN_WALLET.slice(-6)}
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto px-4 py-8">
