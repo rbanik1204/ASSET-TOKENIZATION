@@ -5,6 +5,7 @@ import { AlgorandProvider } from './contexts/AlgorandContext';
 import { AssetRegistryProvider } from './contexts/AssetRegistryContext';
 import { GovernanceProvider } from './contexts/GovernanceContext';
 import { KycProvider } from './contexts/KycContext';
+import { MarketplaceProvider } from './contexts/MarketplaceContext';
 import { Toaster } from 'sonner';
 
 export default function App() {
@@ -13,6 +14,7 @@ export default function App() {
       <KycProvider>
       <AssetRegistryProvider>
         <GovernanceProvider>
+          <MarketplaceProvider>
           <RouterProvider router={router} />
           <Toaster
             position="top-right"
@@ -26,6 +28,7 @@ export default function App() {
               },
             }}
           />
+          </MarketplaceProvider>
         </GovernanceProvider>
       </AssetRegistryProvider>
       </KycProvider>

@@ -1,44 +1,51 @@
 import React, { useState } from 'react';
 import { X, ShoppingCart, AlertCircle, CheckCircle, ExternalLink, RefreshCw } from 'lucide-react';
 import { useAlgorand } from '../contexts/AlgorandContext';
-import { useAssetRegistry } from '../contexts/AssetRegistryContext';
+import { useMarketplace, type PrepareBuyResult } from '../contexts/MarketplaceContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
+import algosdk from 'algosdk';
 
 interface BuyFractionModalProps {
-  asset: {
+  listing: {
     id: string;
-    assetId?: number;
-    name: string;
+    asaId: number;
+    assetName: string;
     unitName: string;
     pricePerUnit: number;
-    unitsAvailable: number;
-    seller: string;
+    remainingQuantity: number;
+    minPurchase: number;
+    sellerAddress: string;
+    platformFeeBps: number;
   };
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: () => void;
 }
 
-type TxStatus = 'idle' | 'estimating' | 'swapping' | 'confirming' | 'success' | 'error';
+type TxStatus = 'idle' | 'preparing' | 'signing' | 'confirming' | 'success' | 'error';
 
 export const BuyFractionModal: React.FC<BuyFractionModalProps> = ({
-  asset,
+  listing,
   isOpen,
   onClose,
   onSuccess,
 }) => {
-  const { address, network } = useAlgorand();
-  const { addTransaction } = useAssetRegistry();
+  const { address, connectedWallet, network } = useAlgorand();
+  const { prepareBuy, confirmBuy } = useMarketplace();
 
-  const [units, setUnits] = useState(1);
+  const [units, setUnits] = useState(listing.minPurchase || 1);
   const [txStatus, setTxStatus] = useState<TxStatus>('idle');
+  const [prepareResult, setPrepareResult] = useState<PrepareBuyResult | null>(null);
+  const [explorerUrl, setExplorerUrl] = useState<string | null>(null);
   const [txId, setTxId] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const totalCost = units * asset.pricePerUnit;
-  const swapFee = 0.002; // 2 txns × 0.001 ALGO
-  const totalWithFees = totalCost + swapFee;
+  const feePct = listing.platformFeeBps / 100;
+  const subtotal = units * listing.pricePerUnit;
+  const platformFee = subtotal * listing.platformFeeBps / 10000;
+  const totalCost = subtotal;
+  const networkFee = 0.003; // ~3 txns × 0.001 ALGO
 
   const explorerBase = network === 'mainnet'
     ? 'https://algoexplorer.io'
@@ -46,9 +53,11 @@ export const BuyFractionModal: React.FC<BuyFractionModalProps> = ({
 
   const reset = () => {
     setTxStatus('idle');
+    setPrepareResult(null);
+    setExplorerUrl(null);
     setTxId(null);
     setErrorMsg(null);
-    setUnits(1);
+    setUnits(listing.minPurchase || 1);
   };
 
   const handleClose = () => {
@@ -56,104 +65,88 @@ export const BuyFractionModal: React.FC<BuyFractionModalProps> = ({
     onClose();
   };
 
+  /**
+   * Two-step atomic swap buy flow:
+   * 1. prepareBuy → get unsigned buyer txns from backend
+   * 2. Wallet signs buyer txns
+   * 3. confirmBuy → backend signs server portion + submits to Algorand
+   */
   const handleBuy = async () => {
-    if (!address) {
+    if (!address || !connectedWallet) {
       toast.error('Please connect your wallet first');
       return;
     }
-
-    if (!asset.assetId) {
-      toast.error('This asset is not yet tokenized on Algorand');
+    if (units < listing.minPurchase || units > listing.remainingQuantity) {
+      toast.error(`Enter a valid amount (${listing.minPurchase} - ${listing.remainingQuantity})`);
       return;
     }
 
-    if (units <= 0 || units > asset.unitsAvailable) {
-      toast.error(`Enter a valid amount (1 - ${asset.unitsAvailable})`);
-      return;
-    }
-
-    setTxStatus('estimating');
+    setTxStatus('preparing');
     setErrorMsg(null);
 
     try {
-      // 1. Estimate swap
-      const estimateRes = await fetch('/api/swap/estimate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          asaAmount: units,
-          algoAmount: Math.round(totalCost * 1_000_000),
-        }),
+      // ── Step 1: Prepare (get unsigned txns from backend) ──
+      const result = await prepareBuy(listing.id, address, units);
+      setPrepareResult(result);
+
+      // ── Step 2: Sign buyer txns with wallet ──
+      setTxStatus('signing');
+
+      // Decode unsigned txns → algosdk Transaction objects
+      const txnObjs = result.unsignedTxns.map((b64) => {
+        const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+        return algosdk.decodeUnsignedTransaction(bytes);
       });
-      const estimate = await estimateRes.json();
 
-      if (!estimate.success) {
-        throw new Error('Failed to estimate swap costs');
+      // Build signable txn groups for Pera/Defly wallet
+      // Each txn is wrapped in [[{ txn }]] format for single-group signing
+      const txnGroup = txnObjs.map((txn) => ({ txn }));
+
+      let signedTxnBytes: Uint8Array[];
+
+      if (connectedWallet === 'pera') {
+        // @ts-ignore - Pera wallet signTransaction
+        const peraWallet = (window as any).__peraWallet;
+        // Try to get Pera ref — use dynamic import fallback
+        const { PeraWalletConnect } = await import('@perawallet/connect');
+        const pera = new PeraWalletConnect({ chainId: network === 'mainnet' ? 416001 : 416002 });
+        try { await pera.reconnectSession(); } catch { await pera.connect(); }
+        signedTxnBytes = await pera.signTransaction([txnGroup]);
+      } else if (connectedWallet === 'defly') {
+        const { DeflyWalletConnect } = await import('@blockshake/defly-connect');
+        const defly = new DeflyWalletConnect({ chainId: network === 'mainnet' ? 416001 : 416002 });
+        try { await defly.reconnectSession(); } catch { await defly.connect(); }
+        signedTxnBytes = await defly.signTransaction([txnGroup]);
+      } else {
+        throw new Error('Unsupported wallet type');
       }
 
-      setTxStatus('swapping');
+      // Convert signed txns to base64
+      const signedTxnsB64 = signedTxnBytes.map((bytes) => {
+        if (bytes instanceof Uint8Array) {
+          return btoa(String.fromCharCode(...bytes));
+        }
+        return btoa(String.fromCharCode(...new Uint8Array(bytes)));
+      });
 
-      // 2. Prompt for mnemonic (DEMO MODE — in production use WalletConnect)
-      const buyerMnemonic = prompt(
-        `Confirm purchase of ${units} unit(s) of ${asset.name}.\n\n` +
-        `Cost: ${totalCost} ALGO\nFees: ${swapFee} ALGO\nTotal: ${totalWithFees} ALGO\n\n` +
-        `[DEMO] Enter your 25-word mnemonic to sign:`
-      );
-
-      if (!buyerMnemonic) {
-        setTxStatus('idle');
-        return;
-      }
-
-      const sellerMnemonic = prompt(
-        `[DEMO] Enter the SELLER's 25-word mnemonic to complete atomic swap:`
-      );
-
-      if (!sellerMnemonic) {
-        setTxStatus('idle');
-        return;
-      }
-
+      // ── Step 3: Confirm (backend signs server portion + submits) ──
       setTxStatus('confirming');
 
-      // 3. Execute atomic swap
-      const swapRes = await fetch('/api/swap/execute', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          buyerMnemonic,
-          sellerMnemonic,
-          asaId: asset.assetId,
-          asaAmount: units,
-          algoAmount: Math.round(totalCost * 1_000_000),
-        }),
-      });
+      const confirmResult = await confirmBuy(result.tradeId, signedTxnsB64);
+      setTxId(confirmResult.trade.groupTxId);
+      setExplorerUrl(confirmResult.explorerUrl);
+      setTxStatus('success');
 
-      const result = await swapRes.json();
+      toast.success(`✅ Purchased ${units} unit(s) of ${listing.assetName}!`);
+      onSuccess?.();
 
-      if (result.success) {
-        setTxId(result.txId);
-        setTxStatus('success');
-
-        // Record in context
-        addTransaction({
-          type: 'purchase',
-          assetId: asset.assetId,
-          assetName: asset.name,
-          from: asset.seller,
-          to: address,
-          amount: units,
-          txId: result.txId,
-          status: 'confirmed',
-        });
-
-        toast.success(`✅ Purchased ${units} unit(s) of ${asset.name}!`);
-        onSuccess?.();
-      } else {
-        throw new Error(result.message || 'Atomic swap failed');
-      }
     } catch (err: any) {
       console.error('Buy error:', err);
+      // User cancelled wallet signing
+      if (err?.message?.includes('CONNECT_MODAL_CLOSED') || err?.message?.includes('cancelled')) {
+        setTxStatus('idle');
+        return;
+      }
       setTxStatus('error');
       setErrorMsg(err.message || 'Purchase failed');
       toast.error(err.message || 'Purchase failed');
@@ -162,9 +155,9 @@ export const BuyFractionModal: React.FC<BuyFractionModalProps> = ({
 
   const statusMessages: Record<TxStatus, string | null> = {
     idle: null,
-    estimating: '⏳ Estimating swap costs...',
-    swapping: '🔄 Preparing atomic swap group...',
-    confirming: '⛓️ Waiting for blockchain confirmation...',
+    preparing: '⏳ Preparing atomic swap...',
+    signing: '✍️ Please sign in your wallet...',
+    confirming: '⛓️ Submitting to Algorand blockchain...',
     success: '✅ Purchase complete!',
     error: '❌ Transaction failed',
   };
@@ -204,33 +197,29 @@ export const BuyFractionModal: React.FC<BuyFractionModalProps> = ({
               {/* Asset Info */}
               <div className="border-2 border-foreground bg-background p-4">
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-bold uppercase text-lg">{asset.name}</h3>
+                  <h3 className="font-bold uppercase text-lg">{listing.assetName}</h3>
                   <span className="px-2 py-1 bg-accent text-black text-xs font-bold uppercase">
-                    {asset.unitName}
+                    {listing.unitName}
                   </span>
                 </div>
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <div>
                     <div className="text-xs text-muted-foreground uppercase mb-1">ASA ID</div>
                     <div className="font-mono font-bold">
-                      {asset.assetId ? (
-                        <a
-                          href={`${explorerBase}/asset/${asset.assetId}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-accent hover:underline flex items-center gap-1"
-                        >
-                          #{asset.assetId}
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
-                      ) : (
-                        <span className="text-muted-foreground">Not tokenized</span>
-                      )}
+                      <a
+                        href={`${explorerBase}/asset/${listing.asaId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-accent hover:underline flex items-center gap-1"
+                      >
+                        #{listing.asaId}
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
                     </div>
                   </div>
                   <div>
                     <div className="text-xs text-muted-foreground uppercase mb-1">Available</div>
-                    <div className="font-bold">{asset.unitsAvailable.toLocaleString()} units</div>
+                    <div className="font-bold">{listing.remainingQuantity.toLocaleString()} units</div>
                   </div>
                 </div>
               </div>
@@ -241,20 +230,29 @@ export const BuyFractionModal: React.FC<BuyFractionModalProps> = ({
                   <CheckCircle className="w-12 h-12 text-accent mx-auto" />
                   <h3 className="font-bold uppercase text-lg">PURCHASE SUCCESSFUL</h3>
                   <p className="text-sm text-muted-foreground">
-                    You now own {units} unit(s) of {asset.name}
+                    You now own {units} unit(s) of {listing.assetName}
                   </p>
+                  {prepareResult?.summary && (
+                    <div className="text-xs text-muted-foreground space-y-1">
+                      <div>Subtotal: {prepareResult.summary.subtotal.toFixed(4)} ALGO</div>
+                      <div>Platform Fee: {prepareResult.summary.platformFee.toFixed(4)} ALGO</div>
+                      <div className="font-bold text-accent">Total: {prepareResult.summary.totalCost.toFixed(4)} ALGO</div>
+                    </div>
+                  )}
                   <div className="font-mono text-xs bg-black border border-foreground p-3 break-all">
                     TX: {txId}
                   </div>
-                  <a
-                    href={`${explorerBase}/tx/${txId}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-4 py-2 border-2 border-accent text-accent hover:bg-accent hover:text-black transition-colors uppercase font-bold text-sm"
-                  >
-                    <ExternalLink className="w-4 h-4" />
-                    VIEW ON ALGOEXPLORER
-                  </a>
+                  {explorerUrl && (
+                    <a
+                      href={explorerUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 px-4 py-2 border-2 border-accent text-accent hover:bg-accent hover:text-black transition-colors uppercase font-bold text-sm"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                      VIEW ON EXPLORER
+                    </a>
+                  )}
                   <button
                     onClick={handleClose}
                     className="w-full py-3 border-2 border-foreground font-bold uppercase hover:bg-muted transition-colors"
@@ -285,7 +283,7 @@ export const BuyFractionModal: React.FC<BuyFractionModalProps> = ({
                     </label>
                     <div className="flex items-center gap-3">
                       <button
-                        onClick={() => setUnits(u => Math.max(1, u - 1))}
+                        onClick={() => setUnits(u => Math.max(listing.minPurchase, u - 1))}
                         disabled={txStatus !== 'idle'}
                         className="w-10 h-10 border-2 border-foreground font-bold text-xl hover:border-accent transition-colors disabled:opacity-50"
                       >
@@ -293,40 +291,47 @@ export const BuyFractionModal: React.FC<BuyFractionModalProps> = ({
                       </button>
                       <input
                         type="number"
-                        min={1}
-                        max={asset.unitsAvailable}
+                        min={listing.minPurchase}
+                        max={listing.remainingQuantity}
                         value={units}
-                        onChange={e => setUnits(Math.max(1, Math.min(asset.unitsAvailable, parseInt(e.target.value) || 1)))}
+                        onChange={e => setUnits(Math.max(listing.minPurchase, Math.min(listing.remainingQuantity, parseInt(e.target.value) || listing.minPurchase)))}
                         disabled={txStatus !== 'idle'}
                         className="flex-1 text-center py-2 border-2 border-foreground bg-background focus:border-accent outline-none font-bold text-lg disabled:opacity-50"
                       />
                       <button
-                        onClick={() => setUnits(u => Math.min(asset.unitsAvailable, u + 1))}
+                        onClick={() => setUnits(u => Math.min(listing.remainingQuantity, u + 1))}
                         disabled={txStatus !== 'idle'}
                         className="w-10 h-10 border-2 border-foreground font-bold text-xl hover:border-accent transition-colors disabled:opacity-50"
                       >
                         +
                       </button>
                     </div>
+                    {listing.minPurchase > 1 && (
+                      <p className="text-xs text-muted-foreground mt-1">Min. purchase: {listing.minPurchase} units</p>
+                    )}
                   </div>
 
                   {/* Cost Breakdown */}
                   <div className="border-2 border-foreground bg-background p-4 space-y-2">
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground uppercase">Price per unit</span>
-                      <span className="font-bold">{asset.pricePerUnit} ALGO</span>
+                      <span className="font-bold">{listing.pricePerUnit} ALGO</span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground uppercase">Units × {units}</span>
-                      <span className="font-bold">{totalCost.toFixed(4)} ALGO</span>
+                      <span className="font-bold">{subtotal.toFixed(4)} ALGO</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground uppercase">Network Fee</span>
-                      <span className="font-bold">{swapFee} ALGO</span>
+                      <span className="text-muted-foreground uppercase">Platform Fee ({feePct}%)</span>
+                      <span className="font-bold">{platformFee.toFixed(4)} ALGO</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground uppercase">Network Fee (est.)</span>
+                      <span className="font-bold">{networkFee} ALGO</span>
                     </div>
                     <div className="border-t-2 border-foreground pt-2 flex justify-between">
                       <span className="font-bold uppercase">TOTAL</span>
-                      <span className="font-bold text-accent text-lg">{totalWithFees.toFixed(4)} ALGO</span>
+                      <span className="font-bold text-accent text-lg">{(totalCost + networkFee).toFixed(4)} ALGO</span>
                     </div>
                   </div>
 
@@ -340,15 +345,15 @@ export const BuyFractionModal: React.FC<BuyFractionModalProps> = ({
 
                   {/* Atomic Swap Explainer */}
                   <div className="text-xs text-muted-foreground border-l-4 border-accent pl-3">
-                    This executes an <strong className="text-accent">atomic swap</strong>: both the
-                    ALGO payment and ASA transfer happen simultaneously or not at all — completely
-                    trustless.
+                    This executes an <strong className="text-accent">atomic swap</strong> on Algorand:
+                    your ALGO payment is grouped with the ASA transfer — both succeed or both
+                    fail. Your wallet will prompt you to sign the payment transaction(s).
                   </div>
 
                   {/* Buy Button */}
                   <button
                     onClick={handleBuy}
-                    disabled={!address || txStatus !== 'idle' || !asset.assetId}
+                    disabled={!address || txStatus !== 'idle'}
                     className="w-full py-4 bg-accent text-black border-2 border-foreground font-bold uppercase text-lg hover:bg-accent/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-3"
                   >
                     {txStatus !== 'idle' ? (

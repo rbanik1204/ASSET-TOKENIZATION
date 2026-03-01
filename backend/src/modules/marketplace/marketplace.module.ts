@@ -3,9 +3,11 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { MarketplaceController } from './marketplace.controller';
 import { MarketplaceService } from './marketplace.service';
 import { MarketplaceListing } from './entities/listing.entity';
+import { MarketplaceTrade } from './entities/trade.entity';
+import { Asset } from '../assets/entities/asset.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([MarketplaceListing])],
+  imports: [TypeOrmModule.forFeature([MarketplaceListing, MarketplaceTrade, Asset])],
   controllers: [MarketplaceController],
   providers: [MarketplaceService],
   exports: [MarketplaceService],
