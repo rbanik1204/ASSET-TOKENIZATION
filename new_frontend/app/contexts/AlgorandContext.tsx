@@ -96,6 +96,16 @@ export const AlgorandProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         chainId: network === 'mainnet' ? 416001 : 416002,
       });
     }
+
+    // Reconnect existing wallet session so signTransaction works after page reload
+    const savedWallet = localStorage.getItem('al_wallet') as WalletType;
+    if (savedWallet === 'pera' && peraWallet.current) {
+      peraWallet.current.reconnectSession().catch(() => {
+        // Session expired or not found — user will need to reconnect
+      });
+    } else if (savedWallet === 'defly' && deflyWallet.current) {
+      deflyWallet.current.reconnectSession().catch(() => {});
+    }
   }, [network]);
 
   // ── Restore session on mount ───────────────────────────────────
