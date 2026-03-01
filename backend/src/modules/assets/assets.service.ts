@@ -1,10 +1,14 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
+import { ConfigService } from '@nestjs/config';
 import { Asset, VerificationStatus } from './entities/asset.entity';
 import { Transaction } from './entities/transaction.entity';
 import { AssetHolder } from './entities/asset-holder.entity';
+import { MarketplaceListing, ListingStatus, ListingType } from '../marketplace/entities/listing.entity';
 import { PaginationDto, PaginatedResponseDto } from '../../common/dto/pagination.dto';
+import { VerifyAssetDto } from './dto/create-asset.dto';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class AssetsService {
@@ -17,6 +21,10 @@ export class AssetsService {
     private readonly txRepo: Repository<Transaction>,
     @InjectRepository(AssetHolder)
     private readonly holderRepo: Repository<AssetHolder>,
+    @InjectRepository(MarketplaceListing)
+    private readonly listingRepo: Repository<MarketplaceListing>,
+    private readonly config: ConfigService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   /** List assets with pagination and optional filtering */
@@ -149,6 +157,138 @@ export class AssetsService {
       pendingAssets,
       totalTransactions,
       uniqueHolders: parseInt(uniqueHolders?.count || '0', 10),
+    };
+  }
+
+  /** Get all assets pending admin review (with supporting documents) */
+  async getPendingReview() {
+    const assets = await this.assetRepo.find({
+      where: { verificationStatus: VerificationStatus.PENDING },
+      order: { createdAt: 'DESC' },
+    });
+
+    return assets.map(a => ({
+      id: a.id,
+      name: a.name,
+      unitName: a.unitName,
+      description: a.description,
+      category: a.category,
+      totalSupply: a.totalSupply,
+      decimals: a.decimals,
+      pricePerUnit: a.pricePerUnit,
+      currency: a.currency,
+      asaId: a.asaId,
+      asaCreator: a.asaCreator,
+      ownerAddress: a.ownerAddress,
+      tokenizationStatus: a.tokenizationStatus,
+      verificationStatus: a.verificationStatus,
+      supportingDocuments: a.supportingDocuments || [],
+      ipfsCid: a.ipfsCid,
+      createdAt: a.createdAt,
+    }));
+  }
+
+  /** Admin approve or reject an asset after document review */
+  async verifyAsset(dto: VerifyAssetDto) {
+    // ── Admin-only guard ──────────────────────────────────────
+    const adminAddress = this.config.get<string>('algorand.admin.address');
+    if (adminAddress && dto.reviewerAddress !== adminAddress) {
+      throw new ForbiddenException(
+        'Only the platform admin wallet can approve or reject assets. ' +
+        `Expected: ${adminAddress.slice(0, 8)}...${adminAddress.slice(-4)}`,
+      );
+    }
+
+    const asset = await this.assetRepo.findOne({ where: { id: dto.assetId } });
+    if (!asset) throw new NotFoundException(`Asset ${dto.assetId} not found`);
+
+    if (asset.verificationStatus !== VerificationStatus.PENDING) {
+      throw new BadRequestException(
+        `Asset is already ${asset.verificationStatus}. Cannot change status.`,
+      );
+    }
+
+    asset.verificationStatus = dto.approve
+      ? VerificationStatus.APPROVED
+      : VerificationStatus.REJECTED;
+    asset.verificationDate = new Date();
+    asset.adminReviewNote = dto.reason || '';
+    asset.reviewedBy = dto.reviewerAddress;
+
+    const saved = await this.assetRepo.save(asset);
+    this.logger.log(
+      `Asset ${saved.id} (${saved.name}) ${dto.approve ? 'APPROVED' : 'REJECTED'} by ${dto.reviewerAddress}`,
+    );
+
+    // ── Auto-list approved assets on marketplace ──────────────
+    let listingId: string | null = null;
+    if (dto.approve && saved.asaId && saved.ownerAddress) {
+      try {
+        // Check for existing active listing
+        const existing = await this.listingRepo.findOne({
+          where: {
+            asaId: saved.asaId,
+            status: In([ListingStatus.ACTIVE, ListingStatus.PARTIAL]),
+          },
+        });
+
+        if (!existing) {
+          const listing = this.listingRepo.create({
+            assetId: saved.id,
+            asaId: saved.asaId,
+            assetName: saved.name,
+            unitName: saved.unitName,
+            category: saved.category || null,
+            sellerAddress: saved.ownerAddress,
+            pricePerUnit: saved.pricePerUnit || 1,
+            originalQuantity: saved.totalSupply,
+            remainingQuantity: saved.totalSupply,
+            minPurchase: 1,
+            platformFeeBps: 250,
+            description: saved.description || null,
+            status: ListingStatus.ACTIVE,
+            listingType: ListingType.SELL,
+          });
+          const savedListing = await this.listingRepo.save(listing);
+          listingId = savedListing.id;
+          this.logger.log(
+            `Auto-listed asset ${saved.name} on marketplace: ${savedListing.id} ` +
+            `— ${saved.totalSupply} units @ ${saved.pricePerUnit || 1} ALGO`,
+          );
+        }
+      } catch (err: any) {
+        this.logger.warn(`Auto-listing failed for ${saved.id}: ${err.message}`);
+      }
+    }
+
+    // ── Notify the asset owner ────────────────────────────────
+    try {
+      if (saved.ownerAddress) {
+        await this.notificationsService.create({
+          walletAddress: saved.ownerAddress,
+          type: dto.approve ? 'income' : 'alert',
+          title: dto.approve ? 'Asset Approved & Listed!' : 'Asset Rejected',
+          message: dto.approve
+            ? `Your asset "${saved.name}" has been approved by admin and is now listed on the marketplace. Buyers can purchase your tokens with ALGO.`
+            : `Your asset "${saved.name}" was rejected. Reason: ${dto.reason || 'Not specified'}`,
+          actionUrl: dto.approve ? '/marketplace' : '/tokenize',
+          network: 'testnet',
+        });
+      }
+    } catch (err: any) {
+      this.logger.warn(`Failed to notify owner: ${err.message}`);
+    }
+
+    return {
+      success: true,
+      id: saved.id,
+      name: saved.name,
+      verificationStatus: saved.verificationStatus,
+      reviewedBy: saved.reviewedBy,
+      listingId,
+      message: dto.approve
+        ? `Asset approved and ${listingId ? 'auto-listed on marketplace' : 'ready for marketplace'}`
+        : 'Asset rejected',
     };
   }
 }

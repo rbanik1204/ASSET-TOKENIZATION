@@ -7,11 +7,12 @@ import {
   FileText, Lock, CheckCircle, Wallet,
   Building2, Zap, Leaf, Cpu, Gem, BarChart3,
   Shield, ShieldCheck, ArrowRight, Layers, Send, Search,
-  Upload, Link2, Globe, Loader2,
+  Upload, Link2, Globe, Loader2, Trash2, File, AlertCircle,
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { PageTransition } from '../components/motion/MotionSystem';
 import { toast } from 'sonner';
+import { uploadDocuments, type UploadedDocument } from '../config/firebase';
 
 // ─── Shared styles ────────────────────────────────────────────────────────
 const glass = (extra?: React.CSSProperties): React.CSSProperties => ({
@@ -226,6 +227,13 @@ export const Tokenize: React.FC = () => {
   const [mintResult, setMintResult] = useState<{ txId: string; asaId: number; recordId: string } | null>(null);
   const [mintError, setMintError] = useState<string | null>(null);
 
+  // Document upload state
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [uploadedDocs, setUploadedDocs] = useState<UploadedDocument[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{ fileIndex: number; percent: number } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const categories = [
     'real-estate', 'energy', 'commodities', 'infrastructure',
     'securities', 'other',
@@ -239,10 +247,56 @@ export const Tokenize: React.FC = () => {
     }));
   };
 
+  // Document upload handlers
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    const MAX_SIZE = 10 * 1024 * 1024; // 10 MB per file
+    const allowed = files.filter(f => {
+      if (f.size > MAX_SIZE) {
+        toast.error(`${f.name} exceeds 10 MB limit`);
+        return false;
+      }
+      return true;
+    });
+    setSelectedFiles(prev => [...prev, ...allowed]);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const removeFile = (index: number) => {
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const removeUploadedDoc = (index: number) => {
+    setUploadedDocs(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleUploadDocuments = async () => {
+    if (!address || selectedFiles.length === 0) return;
+    setIsUploading(true);
+    setUploadProgress(null);
+    try {
+      const docs = await uploadDocuments(selectedFiles, address, (fileIndex, percent) => {
+        setUploadProgress({ fileIndex, percent });
+      });
+      setUploadedDocs(prev => [...prev, ...docs]);
+      setSelectedFiles([]);
+      toast.success(`${docs.length} document(s) uploaded successfully`);
+    } catch (err: any) {
+      toast.error(err.message || 'Document upload failed');
+    } finally {
+      setIsUploading(false);
+      setUploadProgress(null);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!address) {
       toast.error('Please connect your wallet first');
+      return;
+    }
+    if (uploadedDocs.length === 0) {
+      toast.error('Please upload at least one supporting document (e.g., property deed, certificate)');
       return;
     }
     setStep('review');
@@ -273,6 +327,12 @@ export const Tokenize: React.FC = () => {
         freeze: formData.freeze || undefined,
         clawback: formData.clawback || undefined,
         creator: address,
+        supportingDocuments: uploadedDocs.map(d => ({
+          name: d.name,
+          url: d.url,
+          type: d.type,
+          size: d.size,
+        })),
       });
       setPrepResult(prep);
       toast.success(`IPFS pinned — CID: ${prep.ipfs.cid.slice(0, 12)}...`);
@@ -518,11 +578,13 @@ export const Tokenize: React.FC = () => {
                   setMintResult(null);
                   setPrepResult(null);
                   setFormData({
-                    name: '', unitName: '', totalSupply: '', decimals: '0', url: '',
+                    name: '', unitName: '', totalSupply: '', decimals: '0', pricePerUnit: '', url: '',
                     category: 'real-estate', description: '', defaultFrozen: false,
                     manager: address || '', reserve: address || '',
                     freeze: address || '', clawback: address || '',
                   });
+                  setUploadedDocs([]);
+                  setSelectedFiles([]);
                 }}
                 style={{
                   padding: '12px 24px', borderRadius: '12px',
@@ -611,6 +673,42 @@ export const Tokenize: React.FC = () => {
                 <div>Clawback: {formData.clawback?.slice(0, 8) || 'None'}…</div>
               </div>
             </div>
+
+            {/* Uploaded documents */}
+            {uploadedDocs.length > 0 && (
+              <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                <div style={{ ...labelStyle, marginBottom: '8px' }}>
+                  Supporting Documents ({uploadedDocs.length})
+                </div>
+                {uploadedDocs.map((doc, i) => (
+                  <div key={i} style={{
+                    display: 'flex', alignItems: 'center', gap: '8px',
+                    padding: '8px 10px', marginBottom: '4px',
+                    borderRadius: '6px', background: 'rgba(0,224,138,0.04)',
+                    border: '1px solid rgba(0,224,138,0.1)',
+                  }}>
+                    <CheckCircle style={{ width: '12px', height: '12px', color: '#00e08a', flexShrink: 0 }} />
+                    <span style={{ fontSize: '12px', color: '#f0f6f3', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {doc.name}
+                    </span>
+                    <span style={{ fontSize: '10px', color: 'rgba(240,246,243,0.3)' }}>
+                      {(doc.size / 1024).toFixed(0)} KB
+                    </span>
+                  </div>
+                ))}
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: '6px',
+                  marginTop: '8px', padding: '8px 10px',
+                  borderRadius: '6px', background: 'rgba(255,170,50,0.04)',
+                  border: '1px solid rgba(255,170,50,0.1)',
+                }}>
+                  <AlertCircle style={{ width: '12px', height: '12px', color: '#ffaa32', flexShrink: 0 }} />
+                  <span style={{ fontSize: '11px', color: 'rgba(240,246,243,0.5)' }}>
+                    Documents will be reviewed by an admin. Asset will appear on marketplace only after approval.
+                  </span>
+                </div>
+              </div>
+            )}
           </motion.div>
 
           <div style={{ display: 'flex', gap: '10px' }}>
@@ -1041,6 +1139,181 @@ export const Tokenize: React.FC = () => {
                   </div>
                 ))}
               </div>
+            </motion.div>
+
+            {/* ── Supporting Documents ─────────────────────────────── */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.38 }}
+              style={glass({ padding: '24px', marginBottom: '20px' })}
+            >
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: '8px',
+                marginBottom: '6px',
+              }}>
+                <Upload style={{ width: '16px', height: '16px', color: '#00e08a' }} />
+                <span style={{ fontSize: '14px', fontWeight: 700, color: '#f0f6f3' }}>
+                  Supporting Documents
+                </span>
+                <span style={{
+                  fontSize: '10px', color: '#00e08a',
+                  marginLeft: '4px', fontWeight: 700,
+                  background: 'rgba(0,224,138,0.1)',
+                  padding: '2px 8px', borderRadius: '4px',
+                }}>REQUIRED</span>
+              </div>
+              <p style={{ fontSize: '12px', color: 'rgba(240,246,243,0.4)', marginBottom: '16px', lineHeight: 1.5 }}>
+                Upload property deeds, certificates, legal documents, or any supporting evidence.
+                Documents will be reviewed by an admin before your asset is approved for marketplace listing.
+              </p>
+
+              {/* Upload area */}
+              <div
+                onClick={() => !isUploading && fileInputRef.current?.click()}
+                style={{
+                  border: '2px dashed rgba(0,224,138,0.2)',
+                  borderRadius: '12px',
+                  padding: '28px 20px',
+                  textAlign: 'center',
+                  cursor: isUploading ? 'wait' : 'pointer',
+                  background: 'rgba(0,224,138,0.02)',
+                  transition: 'all 0.25s',
+                  marginBottom: '14px',
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'rgba(0,224,138,0.4)'; e.currentTarget.style.background = 'rgba(0,224,138,0.04)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'rgba(0,224,138,0.2)'; e.currentTarget.style.background = 'rgba(0,224,138,0.02)'; }}
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp"
+                  onChange={handleFileSelect}
+                  style={{ display: 'none' }}
+                />
+                <Upload style={{ width: '24px', height: '24px', color: 'rgba(0,224,138,0.5)', margin: '0 auto 8px' }} />
+                <div style={{ fontSize: '13px', fontWeight: 600, color: 'rgba(240,246,243,0.6)' }}>
+                  Click to select files
+                </div>
+                <div style={{ fontSize: '11px', color: 'rgba(240,246,243,0.3)', marginTop: '4px' }}>
+                  PDF, DOC, JPG, PNG — Max 10 MB each
+                </div>
+              </div>
+
+              {/* Pending files (not yet uploaded) */}
+              {selectedFiles.length > 0 && (
+                <div style={{ marginBottom: '12px' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 600, color: 'rgba(240,246,243,0.45)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+                    Ready to Upload ({selectedFiles.length})
+                  </div>
+                  {selectedFiles.map((file, i) => (
+                    <div key={i} style={{
+                      display: 'flex', alignItems: 'center', gap: '10px',
+                      padding: '10px 12px', marginBottom: '6px',
+                      borderRadius: '8px', background: 'rgba(255,255,255,0.03)',
+                      border: '1px solid rgba(255,255,255,0.06)',
+                    }}>
+                      <File style={{ width: '14px', height: '14px', color: 'rgba(240,246,243,0.4)', flexShrink: 0 }} />
+                      <span style={{ fontSize: '12px', color: '#f0f6f3', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {file.name}
+                      </span>
+                      <span style={{ fontSize: '10px', color: 'rgba(240,246,243,0.3)', flexShrink: 0 }}>
+                        {(file.size / 1024).toFixed(0)} KB
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); removeFile(i); }}
+                        style={{
+                          background: 'none', border: 'none', cursor: 'pointer',
+                          padding: '4px', display: 'flex',
+                        }}
+                      >
+                        <Trash2 style={{ width: '13px', height: '13px', color: 'rgba(255,100,100,0.6)' }} />
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={handleUploadDocuments}
+                    disabled={isUploading}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                      width: '100%', padding: '10px',
+                      borderRadius: '8px',
+                      border: '1px solid rgba(0,224,138,0.3)',
+                      background: 'rgba(0,224,138,0.08)',
+                      color: '#00e08a',
+                      fontSize: '12px', fontWeight: 700,
+                      cursor: isUploading ? 'wait' : 'pointer',
+                      marginTop: '8px',
+                      transition: 'all 0.25s',
+                    }}
+                  >
+                    {isUploading ? (
+                      <>
+                        <Loader2 style={{ width: '14px', height: '14px', animation: 'spin 1s linear infinite' }} />
+                        Uploading {uploadProgress ? `(${uploadProgress.percent}%)` : '...'}
+                      </>
+                    ) : (
+                      <>
+                        <Upload style={{ width: '14px', height: '14px' }} />
+                        Upload {selectedFiles.length} Document{selectedFiles.length > 1 ? 's' : ''} to Firebase
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+
+              {/* Already uploaded documents */}
+              {uploadedDocs.length > 0 && (
+                <div>
+                  <div style={{ fontSize: '11px', fontWeight: 600, color: '#00e08a', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+                    Uploaded Documents ({uploadedDocs.length})
+                  </div>
+                  {uploadedDocs.map((doc, i) => (
+                    <div key={i} style={{
+                      display: 'flex', alignItems: 'center', gap: '10px',
+                      padding: '10px 12px', marginBottom: '6px',
+                      borderRadius: '8px', background: 'rgba(0,224,138,0.04)',
+                      border: '1px solid rgba(0,224,138,0.15)',
+                    }}>
+                      <CheckCircle style={{ width: '14px', height: '14px', color: '#00e08a', flexShrink: 0 }} />
+                      <span style={{ fontSize: '12px', color: '#f0f6f3', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {doc.name}
+                      </span>
+                      <span style={{ fontSize: '10px', color: 'rgba(240,246,243,0.3)', flexShrink: 0 }}>
+                        {(doc.size / 1024).toFixed(0)} KB
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); removeUploadedDoc(i); }}
+                        style={{
+                          background: 'none', border: 'none', cursor: 'pointer',
+                          padding: '4px', display: 'flex',
+                        }}
+                      >
+                        <Trash2 style={{ width: '13px', height: '13px', color: 'rgba(255,100,100,0.6)' }} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Warning if no docs uploaded */}
+              {uploadedDocs.length === 0 && selectedFiles.length === 0 && (
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: '8px',
+                  padding: '10px 14px', borderRadius: '8px',
+                  background: 'rgba(255,170,50,0.06)',
+                  border: '1px solid rgba(255,170,50,0.15)',
+                }}>
+                  <AlertCircle style={{ width: '14px', height: '14px', color: '#ffaa32', flexShrink: 0 }} />
+                  <span style={{ fontSize: '11px', color: 'rgba(240,246,243,0.5)' }}>
+                    At least one supporting document is required. Admin will review before marketplace approval.
+                  </span>
+                </div>
+              )}
             </motion.div>
 
             {/* Submit */}

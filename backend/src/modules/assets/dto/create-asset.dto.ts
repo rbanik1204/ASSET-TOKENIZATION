@@ -81,6 +81,10 @@ export class PrepareTokenizationDto {
   @IsOptional() @IsArray() @IsString({ each: true })
   documentCids?: string[];
 
+  @ApiPropertyOptional({ description: 'Supporting documents uploaded to Firebase Storage' })
+  @IsOptional() @IsArray()
+  supportingDocuments?: { name: string; url: string; type: string; size: number }[];
+
   @ApiPropertyOptional({ description: 'Arbitrary metadata properties' })
   @IsOptional()
   properties?: Record<string, any>;
@@ -122,4 +126,25 @@ export class ComplianceActionDto {
   @ApiPropertyOptional({ description: 'Compliance note / reason' })
   @IsOptional() @IsString() @MaxLength(500)
   reason?: string;
+}
+
+/**
+ * DTO for admin to approve or reject an asset after document review.
+ */
+export class VerifyAssetDto {
+  @ApiProperty({ description: 'Database asset record ID' })
+  @IsString() @IsNotEmpty()
+  assetId: string;
+
+  @ApiProperty({ description: 'Whether to approve the asset' })
+  @IsBoolean()
+  approve: boolean;
+
+  @ApiPropertyOptional({ description: 'Admin review note / rejection reason' })
+  @IsOptional() @IsString() @MaxLength(1000)
+  reason?: string;
+
+  @ApiProperty({ description: 'Reviewer wallet address' })
+  @IsString() @IsNotEmpty()
+  reviewerAddress: string;
 }

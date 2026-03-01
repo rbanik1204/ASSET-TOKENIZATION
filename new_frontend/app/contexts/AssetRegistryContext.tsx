@@ -81,6 +81,7 @@ export interface CreateASAParams {
   pricePerUnit?: number;
   currency?: string;
   documentCids?: string[];
+  supportingDocuments?: { name: string; url: string; type: string; size: number }[];
   properties?: Record<string, any>;
 }
 

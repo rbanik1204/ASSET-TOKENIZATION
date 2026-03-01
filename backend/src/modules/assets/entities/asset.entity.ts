@@ -128,6 +128,15 @@ export class Asset {
   @Column({ name: 'ipfs_document_cids', type: 'simple-json', nullable: true })
   ipfsDocumentCids: string[];
 
+  @Column({ name: 'supporting_documents', type: 'simple-json', nullable: true })
+  supportingDocuments: { name: string; url: string; type: string; size: number }[];
+
+  @Column({ name: 'admin_review_note', type: 'text', nullable: true })
+  adminReviewNote: string;
+
+  @Column({ name: 'reviewed_by', length: 58, nullable: true })
+  reviewedBy: string;
+
   // ── Owner ──────────────────────────────────────────────────
   @Column({ name: 'owner_address', length: 58 })
   ownerAddress: string;

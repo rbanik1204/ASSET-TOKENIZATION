@@ -3,6 +3,7 @@ import { ApiTags, ApiOperation, ApiResponse, ApiQuery, ApiBearerAuth } from '@ne
 import { AssetsService } from './assets.service';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { VerificationStatus } from './entities/asset.entity';
+import { VerifyAssetDto } from './dto/create-asset.dto';
 import { Public, Roles } from '../auth/guards/jwt-auth.guard';
 import { UserRole } from '../auth/entities/user.entity';
 
@@ -37,6 +38,22 @@ export class AssetsController {
   @ApiResponse({ status: 200, description: 'Platform stats returned' })
   getStats() {
     return this.assetsService.getStats();
+  }
+
+  @Public()
+  @Get('pending-review')
+  @ApiOperation({ summary: 'Get all assets pending admin document review' })
+  @ApiResponse({ status: 200, description: 'Pending assets with documents returned' })
+  getPendingReview() {
+    return this.assetsService.getPendingReview();
+  }
+
+  @Public()
+  @Post('verify')
+  @ApiOperation({ summary: 'Admin approve or reject an asset after document review' })
+  @ApiResponse({ status: 200, description: 'Asset verification status updated' })
+  verifyAsset(@Body() dto: VerifyAssetDto) {
+    return this.assetsService.verifyAsset(dto);
   }
 
   @Public()

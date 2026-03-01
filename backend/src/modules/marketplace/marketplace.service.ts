@@ -16,6 +16,7 @@ import {
   ListingFiltersDto,
 } from './dto/marketplace.dto';
 import { PaginationDto, PaginatedResponseDto } from '../../common/dto/pagination.dto';
+import { NotificationsService } from '../notifications/notifications.service';
 
 // Fee recipient — admin address from config
 const PLATFORM_FEE_BPS = 250; // 2.5 %
@@ -33,6 +34,7 @@ export class MarketplaceService {
     private readonly assetRepo: Repository<Asset>,
     private readonly algorand: AlgorandService,
     private readonly config: ConfigService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   // ═════════════════════════════════════════════════════════════
@@ -98,6 +100,14 @@ export class MarketplaceService {
     const asset = await this.assetRepo.findOne({ where: { id: dto.assetId } });
     if (!asset) throw new NotFoundException(`Asset ${dto.assetId} not found`);
     if (!asset.asaId) throw new BadRequestException('Asset has not been tokenized on Algorand yet');
+
+    // Gate: asset must be admin-approved before listing
+    if (asset.verificationStatus !== 'approved') {
+      throw new ForbiddenException(
+        'Asset must be approved by admin before it can be listed on the marketplace. ' +
+        `Current status: ${asset.verificationStatus}`,
+      );
+    }
 
     // Verify the seller actually holds enough of this ASA
     try {
@@ -422,6 +432,41 @@ export class MarketplaceService {
         `Trade confirmed: ${trade.id} — ${trade.units} units of ASA ${trade.asaId} ` +
         `@ round ${confirmedRound} — ${explorerUrl}`,
       );
+
+      // ── Notify seller (asset owner) about the sale ─────────
+      try {
+        const sellerProceedsAlgo = (trade.sellerProceeds / 1_000_000).toFixed(4);
+        await this.notificationsService.create({
+          walletAddress: trade.sellerAddress,
+          type: 'purchase',
+          title: '💰 Token Sale — ALGO Credited!',
+          message: `${trade.units} unit(s) of ${listing.assetName} (${listing.unitName}) sold to ${trade.buyerAddress.slice(0, 8)}...${trade.buyerAddress.slice(-4)}. ` +
+            `You received ${sellerProceedsAlgo} ALGO (after 2.5% platform fee). ` +
+            `Transaction confirmed at round ${confirmedRound}.`,
+          txId: txid,
+          network: trade.network || 'testnet',
+          actionUrl: '/portfolio',
+        });
+      } catch (notifErr: any) {
+        this.logger.warn(`Failed to notify seller: ${notifErr.message}`);
+      }
+
+      // ── Notify buyer about successful purchase ─────────
+      try {
+        const totalCostAlgo = ((trade.sellerProceeds + trade.platformFee) / 1_000_000).toFixed(4);
+        await this.notificationsService.create({
+          walletAddress: trade.buyerAddress,
+          type: 'purchase',
+          title: '✅ Purchase Confirmed!',
+          message: `You purchased ${trade.units} unit(s) of ${listing.assetName} (${listing.unitName}) for ${totalCostAlgo} ALGO. ` +
+            `Transaction confirmed at round ${confirmedRound}.`,
+          txId: txid,
+          network: trade.network || 'testnet',
+          actionUrl: '/portfolio',
+        });
+      } catch (notifErr: any) {
+        this.logger.warn(`Failed to notify buyer: ${notifErr.message}`);
+      }
 
       return { trade, listing, explorerUrl };
     } catch (err: any) {

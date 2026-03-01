@@ -5,9 +5,13 @@ import { MarketplaceService } from './marketplace.service';
 import { MarketplaceListing } from './entities/listing.entity';
 import { MarketplaceTrade } from './entities/trade.entity';
 import { Asset } from '../assets/entities/asset.entity';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([MarketplaceListing, MarketplaceTrade, Asset])],
+  imports: [
+    TypeOrmModule.forFeature([MarketplaceListing, MarketplaceTrade, Asset]),
+    NotificationsModule,
+  ],
   controllers: [MarketplaceController],
   providers: [MarketplaceService],
   exports: [MarketplaceService],

@@ -30,6 +30,7 @@ import { StorageModule } from './modules/storage/storage.module';
 import { HealthModule } from './modules/health/health.module';
 import { ContractsModule } from './modules/contracts/contracts.module';
 import { KycModule } from './modules/kyc/kyc.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -77,6 +78,7 @@ import { KycModule } from './modules/kyc/kyc.module';
     AnalyticsModule,
     ContractsModule,
     KycModule,
+    NotificationsModule,
     HealthModule,
   ],
   providers: [

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Bell, CheckCheck, Trash2, RefreshCw, ExternalLink, ShoppingCart, DollarSign, Shield, AlertTriangle, Info } from 'lucide-react';
 import { useAlgorand } from '../contexts/AlgorandContext';
+import { API_BASE, apiFetch } from '../config/api';
 import { toast } from 'sonner';
 
 type NotifType = 'purchase' | 'income' | 'governance' | 'kyc' | 'system' | 'alert';
@@ -63,28 +64,45 @@ const DEMO_NOTIFICATIONS: Notification[] = [
 ];
 
 const NotificationsPage: React.FC = () => {
-  const { address } = useAlgorand();
-  const [notifs, setNotifs] = useState<Notification[]>(DEMO_NOTIFICATIONS);
+  const { address, network } = useAlgorand();
+  const [notifs, setNotifs] = useState<Notification[]>([]);
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
+  const fetchNotifications = () => {
     if (!address) return;
     setLoading(true);
-    fetch(`/api/notifications?walletAddress=${address}`)
+    apiFetch(`${API_BASE}/notifications?walletAddress=${address}`)
       .then(r => r.json())
       .then(data => {
-        if (data.notifications?.length) setNotifs(data.notifications);
+        const items = data.notifications ?? data.data ?? [];
+        setNotifs(Array.isArray(items) ? items : []);
       })
-      .catch(() => {})
+      .catch(() => setNotifs([]))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchNotifications();
+    // Poll every 30 seconds for new notifications
+    const interval = setInterval(fetchNotifications, 30_000);
+    return () => clearInterval(interval);
   }, [address]);
 
-  const markRead = (id: string) =>
+  const markRead = (id: string) => {
     setNotifs(n => n.map(x => x.id === id ? { ...x, read: true } : x));
+    apiFetch(`${API_BASE}/notifications/${id}/read`, { method: 'POST' }).catch(() => {});
+  };
 
   const markAllRead = () => {
     setNotifs(n => n.map(x => ({ ...x, read: true })));
+    if (address) {
+      apiFetch(`${API_BASE}/notifications/mark-all-read`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ walletAddress: address }),
+      }).catch(() => {});
+    }
     toast.success('All notifications marked as read');
   };
 

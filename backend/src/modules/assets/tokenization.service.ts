@@ -112,6 +112,7 @@ export class TokenizationService {
       ipfsCid: ipfsResult.cid,
       ipfsMetadataUri: ipfsResult.uri,
       ipfsDocumentCids: dto.documentCids || [],
+      supportingDocuments: dto.supportingDocuments || [],
       pricePerUnit: dto.pricePerUnit ?? 0,
       currency: dto.currency || 'ALGO',
       tokenizationStatus: TokenizationStatus.METADATA_PINNED,
